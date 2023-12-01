@@ -1,4 +1,5 @@
 import copy
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -35,4 +36,6 @@ main_frame.please_add_subframe(new_frame, row=0, col=1)
 
 # Set the animation values and then render
 main_frame.please_set_animation_values(x_values, "x")
-main_frame.please_render()
+main_frame.please_render(Path("renders/main_frame/"))
+new_frame.please_set_animation_values(x_values, "x")
+new_frame.please_render(Path("renders/new_frame/"))
