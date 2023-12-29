@@ -1,5 +1,8 @@
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
+from tqdm import tqdm
 
 
 class Frame:
@@ -33,7 +36,7 @@ class Frame:
         for subframe in self.subframes:
             subframe.please_add_dataset(dataset)
 
-    def please_render(self):
+    def please_render(self, save_dir):
         if self.is_animated:
             # Check that all the data has been generated
             self.verify_frame_data(self.animation_values, self.animation_key)
@@ -41,10 +44,15 @@ class Frame:
         # Create figure (and all subfigures)
         self.fig = self.create_figure()
 
+        # Ensure output directory exists
+        if not save_dir.exists():
+            save_dir.mkdir(parents=True, exist_ok=True)
         # Now draw the figure
-        for i, animation_value in enumerate(self.animation_values):
+        for i, animation_value in enumerate(
+            tqdm(self.animation_values, desc=f"Rendering into {save_dir}")
+        ):
             self.render(animation_value)
-            self.fig.savefig(f"output/{i:003}.png", dpi=300)
+            self.fig.savefig(Path(save_dir, f"{i:003}.png"), dpi=300)
             self.clear()
 
     def render(self, animation_value):
