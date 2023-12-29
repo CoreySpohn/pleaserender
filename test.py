@@ -2,20 +2,36 @@ import copy
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
+# import pandas as pd
+import xarray as xr
 
-from pleaserender.core import Frame, Scatter
+from pleaserender.core import Frame, Plot, Scatter
 
 # Create some simple data for the plots
-x_values = np.linspace(0, 10, 100)
-data1 = pd.DataFrame({"x": x_values, "y": np.sin(x_values)})
-data2 = pd.DataFrame({"x": x_values, "y": np.cos(x_values)})
+t_values = np.linspace(0, 10, 100)
+# data1 = pd.DataFrame({"x": x_values, "y": np.sin(x_values)})
+# data2 = pd.DataFrame({"x": x_values, "y": np.cos(x_values)})
+# data1 = xr.DataArray(np.sin(x_values), coords={"x": x_values})
+# data2 = xr.DataArray(np.cos(x_values), coords={"x": x_values})
+ds = xr.Dataset(coords={"time": t_values})
+ds["x"] = ("time", np.sin(ds["time"].values))
+ds["y"] = ("time", np.cos(ds["time"].values))
 
 # Create Plot instances
-plot1 = Scatter(data1, animation_style="Cumulative")
-plot2 = Scatter(data2, animation_style="Trailing")
-plot3 = Scatter(data2, animation_style="Single point")
-plot4 = Scatter(data2, animation_style="Cumulative")
+# plot1 = Scatter(axis_keys={"x": "time", "y": "x"}, animation_style="Cumulative")
+# plot2 = Scatter(axis_keys={"x": "time", "y": "y"}, animation_style="Trailing")
+# plot3 = Scatter(axis_keys={"x": "x", "y": "y"}, animation_style="Single point")
+# plot4 = Scatter(axis_keys={"x": "y", "y": "y"}, animation_style="Cumulative")
+plot1 = Plot(
+    axis_keys={"x": "time", "y": "x"},
+    animation_style="Cumulative",
+)
+plot2 = Plot(axis_keys={"x": "time", "y": "y"}, animation_style="Trailing")
+plot3 = Scatter(
+    axis_keys={"x": "x", "y": "y"},
+    animation_style="Single point",
+)
+plot4 = Scatter(axis_keys={"x": "y", "y": "y"}, animation_style="Cumulative")
 
 # Create a Frame and add the plots
 main_frame = Frame(nrows=1, ncols=2)
@@ -34,5 +50,6 @@ new_frame.please_add_subframe(extra_frame, row=0, col=0)
 main_frame.please_add_subframe(new_frame, row=0, col=1)
 
 # Set the animation values and then render
-main_frame.please_set_animation_values(x_values, "x")
+main_frame.please_add_dataset(ds)
+main_frame.please_set_animation_values(t_values, "time")
 main_frame.please_render()
