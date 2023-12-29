@@ -13,6 +13,8 @@ class Frame:
         # List to store subframes
         self.subframes = []
 
+        self.dataset = None
+
     def please_add_plot(self, plot, row, col, rowspan=1, colspan=1):
         plot.grid_position = (row, col, rowspan, colspan)
         self.plots.append(plot)
@@ -25,6 +27,11 @@ class Frame:
         self.animation_values = animation_values
         self.animation_key = animation_key
         self.is_animated = len(animation_values) > 1
+
+    def please_add_dataset(self, dataset):
+        self.dataset = dataset
+        for subframe in self.subframes:
+            subframe.please_add_dataset(dataset)
 
     def please_render(self):
         if self.is_animated:
@@ -48,7 +55,7 @@ class Frame:
 
         # Render plots
         for plot in self.plots:
-            plot.draw_plot(animation_value, self.animation_key)
+            plot.draw_plot(self.dataset, animation_value, self.animation_key)
 
     def clear(self):
         # clear subframes first
@@ -65,7 +72,9 @@ class Frame:
             # Recursive call for subframes
             subframe.verify_frame_data(animation_values, animation_key)
         for plot in self.plots:
-            necessary_data_exists = plot.verify_data(animation_values, animation_key)
+            necessary_data_exists = plot.verify_data(
+                self.dataset, animation_values, animation_key
+            )
             if not necessary_data_exists:
                 plot.generate_data(animation_values, animation_key)
 
@@ -87,7 +96,7 @@ class Frame:
             plot.ax = self.fig.add_subplot(
                 gridspec.new_subplotspec((row, col), rowspan=rowspan, colspan=colspan)
             )
-            plot.create_axes_config(plot.plot_obj.data)
+            plot.create_axes_config(self.dataset)
 
         # Recursively create figures for each subframe
         for subframe in self.subframes:

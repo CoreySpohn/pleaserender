@@ -1,17 +1,22 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 
-from pleaserender.core.plot_object import PlotObject
+from pleaserender.core.util import filter_data
+
+# from pleaserender.core.plot_object import PlotObject
 
 
 class Plot:
     def __init__(
-        self, plot_obj, axis_keys=None, animation_style="Cumulative", plot_kwargs=None
+        self,
+        axis_keys=None,
+        animation_style="Cumulative",
+        plot_kwargs=None,
     ):
-        self.plot_obj = PlotObject(plot_obj)
         self.ax = None
         self.animation_style = animation_style
+        self.plot_method = "plot"
+
         default_plot_kwargs = {
             "color": "k",
         }
@@ -33,11 +38,31 @@ class Plot:
     def set_ylabel(self, label):
         self.ax.set_ylabel(label)
 
-    def draw_plot(self):
-        """
-        This method should be overridden by subclasses to create specific plot types.
-        """
-        raise NotImplementedError("draw_plot method must be implemented by subclasses")
+    # def draw_plot(self):
+    #     """
+    #     This method should be overridden by subclasses to create specific plot types.
+    #     """
+    #     raise NotImplementedError("draw_plot method must be implemented by subclasses")
+    def draw_plot(self, dataset, animation_value, animation_key):
+        plot_method = getattr(self.ax, self.plot_method)
+        if self.axis_keys["z"] is None:
+            data = filter_data(
+                dataset, animation_value, animation_key, self.animation_style
+            )
+            # self.ax.scatter(
+            #     data[self.axis_keys["x"]], data[self.axis_keys["y"]], **self.plot_kwargs
+            # )
+            plot_method(
+                data[self.axis_keys["x"]], data[self.axis_keys["y"]], **self.plot_kwargs
+            )
+        else:
+            self.ax.scatter(
+                dataset[self.axis_keys["x"]],
+                dataset[self.axis_keys["y"]],
+                dataset[self.axis_keys["z"]],
+                **self.plot_kwargs
+            )
+        self.apply_axes_config()
 
     def show(self):
         plt.show()
@@ -48,18 +73,21 @@ class Plot:
     def close(self):
         plt.close(self.fig)
 
-    def verify_data(self, animation_values, animation_key):
+    def verify_data(self, dataset, animation_values, animation_key):
         """
         Method to check if all the data required for the plot exists.
         Args:
+            dataset (xr.Dataset):
+                Dataset containing the data and coordinates
             animation_values (numpy.ndarray):
                 List of values for the animation
             animation_key (str):
                 Key for the animation values in the plot object's dataframe
         """
-        all_values_present = (
-            self.plot_obj.data[animation_key].isin(animation_values).all()
-        )
+        animation_data = dataset[animation_key].values
+
+        # Check if each element in animation_values is in animation_data
+        all_values_present = np.isin(animation_values, animation_data).all()
         return all_values_present
 
     def generate_data(self, animation_values, animation_key):
