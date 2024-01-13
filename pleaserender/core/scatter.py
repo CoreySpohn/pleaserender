@@ -1,7 +1,4 @@
-from mpl_toolkits.mplot3d import Axes3D
-
 from pleaserender.core.plot import Plot
-from pleaserender.core.util import filter_data
 
 
 class Scatter(Plot):

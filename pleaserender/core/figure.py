@@ -5,7 +5,7 @@ from matplotlib.gridspec import GridSpec
 from tqdm import tqdm
 
 
-class Frame:
+class Figure:
     def __init__(self, nrows=1, ncols=1):
         self.nrows = nrows
         self.ncols = ncols
@@ -13,18 +13,32 @@ class Frame:
         # List to store plots
         self.plots = []
 
-        # List to store subframes
-        self.subframes = []
+        # List to store subfigures
+        self.subfigures = []
 
         self.dataset = None
 
-    def please_add_plot(self, plot, row, col, rowspan=1, colspan=1):
+        self.shared_axes = {}
+
+    def please_add_plot(
+        self, plot, row, col, rowspan=1, colspan=1, sharex_plot=None, sharey_plot=None
+    ):
         plot.grid_position = (row, col, rowspan, colspan)
+        self.shared_axes[plot] = {
+            "x": True if sharex_plot is not None else False,
+            "y": True if sharey_plot is not None else False,
+            "sharex_plot": sharex_plot,
+            "sharey_plot": sharey_plot,
+        }
         self.plots.append(plot)
 
-    def please_add_subframe(self, subframe, row, col, rowspan=1, colspan=1):
-        subframe.grid_position = (row, col, rowspan, colspan)
-        self.subframes.append(subframe)
+    def please_add_subplot(self, subplot, row, col, rowspan=1, colspan=1):
+        subplot.grid_position = (row, col, rowspan, colspan)
+        self.subplots.append(subplot)
+
+    def please_add_subfigure(self, subfigure, row, col, rowspan=1, colspan=1):
+        subfigure.grid_position = (row, col, rowspan, colspan)
+        self.subfigures.append(subfigure)
 
     def please_set_animation_values(self, animation_values, animation_key):
         self.animation_values = animation_values
@@ -33,13 +47,13 @@ class Frame:
 
     def please_add_dataset(self, dataset):
         self.dataset = dataset
-        for subframe in self.subframes:
-            subframe.please_add_dataset(dataset)
+        for subfigure in self.subfigures:
+            subfigure.please_add_dataset(dataset)
 
     def please_render(self, save_dir):
         if self.is_animated:
             # Check that all the data has been generated
-            self.verify_frame_data(self.animation_values, self.animation_key)
+            self.verify_figure_data(self.animation_values, self.animation_key)
 
         # Create figure (and all subfigures)
         self.fig = self.create_figure()
@@ -56,29 +70,29 @@ class Frame:
             self.clear()
 
     def render(self, animation_value):
-        # Render subframes first
-        for subframe in self.subframes:
-            # Recursive call for subframes
-            subframe.render(animation_value)
+        # Render subfigures first
+        for subfigure in self.subfigures:
+            # Recursive call for subfigures
+            subfigure.render(animation_value)
 
         # Render plots
         for plot in self.plots:
             plot.draw_plot(self.dataset, animation_value, self.animation_key)
 
     def clear(self):
-        # clear subframes first
-        for subframe in self.subframes:
-            # Recursive call for subframes
-            subframe.clear()
+        # Clear plots in the subfigures first
+        for subfigure in self.subfigures:
+            # Recursive call for subfigures
+            subfigure.clear()
 
-        # Render plots
+        # Clear plots in the current figure
         for plot in self.plots:
             plot.ax.clear()
 
-    def verify_frame_data(self, animation_values, animation_key):
-        for subframe in self.subframes:
-            # Recursive call for subframes
-            subframe.verify_frame_data(animation_values, animation_key)
+    def verify_figure_data(self, animation_values, animation_key):
+        for subfigure in self.subfigures:
+            # Recursive call for subfigures
+            subfigure.verify_figure_data(animation_values, animation_key)
         for plot in self.plots:
             necessary_data_exists = plot.verify_data(
                 self.dataset, animation_values, animation_key
@@ -88,10 +102,10 @@ class Frame:
 
     def create_figure(self, parent_fig=None, parent_spec=None, animation_key=None):
         if parent_fig is None:
-            # Main frame
+            # Main figure
             self.fig = plt.figure(constrained_layout=True)
         else:
-            # Subframe
+            # Subfigure
             row, col, rowspan, colspan = self.grid_position
             subfigspec = parent_spec[row : row + rowspan, col : col + colspan]
             self.fig = parent_fig.add_subfigure(subfigspec)
@@ -101,14 +115,27 @@ class Frame:
         # Assign axes to plots
         for plot in self.plots:
             row, col, rowspan, colspan = plot.grid_position
+            # if (self.shared_axes[plot]["x"]) or (self.shared_axes[plot]["y"]):
             plot.ax = self.fig.add_subplot(
-                gridspec.new_subplotspec((row, col), rowspan=rowspan, colspan=colspan)
+                gridspec.new_subplotspec((row, col), rowspan=rowspan, colspan=colspan),
+                sharex=self.shared_axes[plot]["sharex_plot"].ax
+                if self.shared_axes[plot]["x"]
+                else None,
+                sharey=self.shared_axes[plot]["sharey_plot"].ax
+                if self.shared_axes[plot]["y"]
+                else None,
             )
-            plot.create_axes_config(self.dataset)
+            # else:
+            #     plot.ax = self.fig.add_subplot(
+            #         gridspec.new_subplotspec(
+            #             (row, col), rowspan=rowspan, colspan=colspan
+            #         )
+            #     )
+            # plot.create_axes_config(self.dataset)
 
-        # Recursively create figures for each subframe
-        for subframe in self.subframes:
-            subframe.create_figure(
+        # Recursively create figures for each subfigure
+        for subfigure in self.subfigures:
+            subfigure.create_figure(
                 parent_fig=self.fig,
                 parent_spec=gridspec,
                 animation_key=self.animation_key,

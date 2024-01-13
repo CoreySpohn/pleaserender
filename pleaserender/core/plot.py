@@ -3,8 +3,6 @@ import numpy as np
 
 from pleaserender.core.util import filter_data
 
-# from pleaserender.core.plot_object import PlotObject
-
 
 class Plot:
     def __init__(
@@ -12,10 +10,16 @@ class Plot:
         axis_keys=None,
         animation_style="Cumulative",
         plot_kwargs=None,
+        ax_kwargs=None,
     ):
         self.ax = None
         self.animation_style = animation_style
         self.plot_method = "plot"
+
+        default_axis_keys = {"x": "x", "y": "y", "z": None}
+        self.axis_keys = default_axis_keys
+        if axis_keys is not None:
+            self.axis_keys.update(axis_keys)
 
         default_plot_kwargs = {
             "color": "k",
@@ -24,10 +28,13 @@ class Plot:
         if plot_kwargs is not None:
             self.plot_kwargs.update(plot_kwargs)
 
-        default_axis_keys = {"x": "x", "y": "y", "z": None}
-        self.axis_keys = default_axis_keys
-        if axis_keys is not None:
-            self.axis_keys.update(axis_keys)
+        default_ax_kwargs = {
+            "xlabel": self.axis_keys.get("x"),
+            "ylabel": self.axis_keys.get("y"),
+        }
+        self.ax_kwargs = default_ax_kwargs
+        if ax_kwargs is not None:
+            self.ax_kwargs.update(ax_kwargs)
 
     def set_title(self, title):
         self.ax.set_title(title)
@@ -38,20 +45,12 @@ class Plot:
     def set_ylabel(self, label):
         self.ax.set_ylabel(label)
 
-    # def draw_plot(self):
-    #     """
-    #     This method should be overridden by subclasses to create specific plot types.
-    #     """
-    #     raise NotImplementedError("draw_plot method must be implemented by subclasses")
     def draw_plot(self, dataset, animation_value, animation_key):
         plot_method = getattr(self.ax, self.plot_method)
         if self.axis_keys["z"] is None:
             data = filter_data(
                 dataset, animation_value, animation_key, self.animation_style
             )
-            # self.ax.scatter(
-            #     data[self.axis_keys["x"]], data[self.axis_keys["y"]], **self.plot_kwargs
-            # )
             plot_method(
                 data[self.axis_keys["x"]], data[self.axis_keys["y"]], **self.plot_kwargs
             )
@@ -60,9 +59,10 @@ class Plot:
                 dataset[self.axis_keys["x"]],
                 dataset[self.axis_keys["y"]],
                 dataset[self.axis_keys["z"]],
-                **self.plot_kwargs
+                **self.plot_kwargs,
             )
-        self.apply_axes_config()
+        self.ax.set(**self.ax_kwargs)
+        # self.apply_axes_config()
 
     def show(self):
         plt.show()
@@ -98,39 +98,34 @@ class Plot:
         raise NotImplementedError(
             "generate_data method must be implemented by plot/ classes."
         )
-        # if self.plot_obj.is_df:
-        #     # Make sure all the data is generated
-        #     all_values_present = self.plot_obj.data.isin(animation_values).all()
-        #     if not all_values_present:
-        #         # Cannot generate data if only a dataframe is provided
-        #         raise ValueError("Cannot generate data from a dataframe")
-        # else:
-        #     # Generate data
-        #     data = getattr(
-        #         self.plot_obj, self.plot_obj.data_gen_method(animation_values)
-        #     )()
-        #     # Insert data into the plot object's dataframe
-        #     self.plot_obj.data = pd.DataFrame(data)
 
-    def create_axes_config(self, data):
-        default_axes_config = {}
-        xdata = data[self.axis_keys.get("x")]
-        default_axes_config["x"] = {
-            "label": self.axis_keys.get("x"),
-            "limits": (xdata.min(), xdata.max()),
-        }
-        ydata = data[self.axis_keys.get("y")]
-        default_axes_config["y"] = {
-            "label": self.axis_keys.get("y"),
-            "limits": (ydata.min(), ydata.max()),
-        }
-        if self.axis_keys.get("z") is not None:
-            zdata = data[self.axis_keys.get("z")]
-            default_axes_config["z"] = {
-                "label": self.axis_keys.get("z"),
-                "limits": (zdata.min(), zdata.max()),
-            }
-        self.axes_config = default_axes_config
+    # def single_ax_config(self, data, ax_letter):
+    #     ax_config = {}
+    #     if self.axis_labels[ax_letter] is not None:
+    #         ax_config[f"{ax_letter}label"] = self.axis_labels[ax_letter]
+    #     else:
+    #         ax_config[f"{ax_letter}label"] = self.axis_keys.get(ax_letter)
+
+    #     if self.axis_limits[ax_letter] is not None:
+    #         ax_config[f"{ax_letter}lim"] = self.axis_limits[ax_letter]
+    #     return ax_config
+
+    # def create_axes_config(self, data):
+    #     default_axes_config = {
+    #         "xlabel": self.axis_labels.get(["x"]),
+    #         "ylabel": self.axis_labels.get(["y"]),
+    #         "zlabel": self.axis_labels.get(["z"]),
+    #     }
+    #     default_axes_config.update(self.plot)
+
+    #     if self.axis_keys.get("z") is not None:
+    #         default_axes_config = self.single_ax_config(data, "z")
+    # zdata = data[self.axis_keys.get("z")]
+    # default_axes_config["z"] = {
+    #     "label": self.axis_keys.get("z"),
+    #     "limits": (zdata.min(), zdata.max()),
+    # }
+    # self.axes_config = default_axes_config
 
     def apply_axes_config(self):
         for axis, settings in self.axes_config.items():
