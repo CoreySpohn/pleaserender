@@ -22,7 +22,11 @@ plot1 = Plot(
 plot2 = Plot(
     axis_keys={"x": "time", "y": "y"},
     animation_style="Trailing",
-    ax_kwargs={"ylabel": "What the hell", "ylim": (-1, 1), "title": "Test"},
+    ax_kwargs={
+        "ylabel": "What the hell",
+        "ylim": (-1, 1),
+        "title": "'Test {animation_value:.2f}'",
+    },
 )
 # plot3 = Scatter(
 #     axis_keys={"x": "x", "y": "y"},
@@ -52,6 +56,5 @@ main_figure.please_add_plot(plot2, row=1, col=0, sharex_plot=plot1)
 # Set the animation values and then render
 main_figure.please_add_dataset(ds)
 main_figure.please_set_animation_values(t_values, "time")
-main_figure.please_render(Path("renders/main_figure/"))
-# new_figure.please_set_animation_values(t_values, "time")
-# new_figure.please_render(Path("renders/new_figure/"))
+main_figure.please_preview()
+# main_figure.please_render(Path("renders/main_figure/"))

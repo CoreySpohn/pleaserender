@@ -50,17 +50,19 @@ class Figure:
         for subfigure in self.subfigures:
             subfigure.please_add_dataset(dataset)
 
-    def please_render(self, save_dir):
-        if self.is_animated:
-            # Check that all the data has been generated
-            self.verify_figure_data(self.animation_values, self.animation_key)
-
+    def please_preview(self):
         # Create figure (and all subfigures)
         self.fig = self.create_figure()
+        self.render(self.animation_values[-1])
+        plt.show()
+
+    def please_render(self, save_dir):
+        self.render_setup()
 
         # Ensure output directory exists
         if not save_dir.exists():
             save_dir.mkdir(parents=True, exist_ok=True)
+
         # Now draw the figure
         for i, animation_value in enumerate(
             tqdm(self.animation_values, desc=f"Rendering into {save_dir}")
@@ -68,6 +70,14 @@ class Figure:
             self.render(animation_value)
             self.fig.savefig(Path(save_dir, f"{i:003}.png"), dpi=300)
             self.clear()
+
+    def render_setup(self):
+        if self.is_animated:
+            # Check that all the data has been generated
+            self.verify_figure_data(self.animation_values, self.animation_key)
+
+        # Create figure (and all subfigures)
+        self.fig = self.create_figure()
 
     def render(self, animation_value):
         # Render subfigures first
@@ -125,13 +135,7 @@ class Figure:
                 if self.shared_axes[plot]["y"]
                 else None,
             )
-            # else:
-            #     plot.ax = self.fig.add_subplot(
-            #         gridspec.new_subplotspec(
-            #             (row, col), rowspan=rowspan, colspan=colspan
-            #         )
-            #     )
-            # plot.create_axes_config(self.dataset)
+            plot.create_axes_config(self.dataset)
 
         # Recursively create figures for each subfigure
         for subfigure in self.subfigures:
