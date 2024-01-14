@@ -2,6 +2,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
+from mpl_toolkits.mplot3d import Axes3D
 from tqdm import tqdm
 
 
@@ -31,10 +32,6 @@ class Figure:
             "sharey_plot": sharey_plot,
         }
         self.plots.append(plot)
-
-    def please_add_subplot(self, subplot, row, col, rowspan=1, colspan=1):
-        subplot.grid_position = (row, col, rowspan, colspan)
-        self.subplots.append(subplot)
 
     def please_add_subfigure(self, subfigure, row, col, rowspan=1, colspan=1):
         subfigure.grid_position = (row, col, rowspan, colspan)
@@ -134,6 +131,7 @@ class Figure:
                 sharey=self.shared_axes[plot]["sharey_plot"].ax
                 if self.shared_axes[plot]["y"]
                 else None,
+                projection=plot.projection,
             )
             plot.create_axes_config(self.dataset)
 

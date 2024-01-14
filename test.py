@@ -17,15 +17,19 @@ ds["y"] = ("time", np.cos(ds["time"].values))
 # Create Plot instances
 plot1 = Plot(
     axis_keys={"x": "time", "y": "x"},
-    animation_style="Cumulative",
+    animation_kwargs={"animation_style": "Cumulative"},
 )
 plot2 = Plot(
-    axis_keys={"x": "time", "y": "y"},
-    animation_style="Trailing",
+    axis_keys={"x": "x", "y": "y", "z": "time"},
+    # animation_style="Trailing",
     ax_kwargs={
         "ylabel": "What the hell",
         "ylim": (-1, 1),
         "title": "'Test {animation_value:.2f}'",
+    },
+    animation_kwargs={
+        "animation_style": "Trailing",
+        "rotate": {"azim": (15, 75), "elev": (45, 75)},
     },
 )
 # plot3 = Scatter(
@@ -43,7 +47,7 @@ main_figure = Figure(nrows=2, ncols=1)
 
 # Add plots to the figures
 main_figure.please_add_plot(plot1, row=0, col=0)
-main_figure.please_add_plot(plot2, row=1, col=0, sharex_plot=plot1)
+main_figure.please_add_plot(plot2, row=1, col=0)
 # new_figure.please_add_plot(plot3, row=1, col=0)
 # new_figure.please_add_plot(plot4, row=2, col=0, rowspan=2)
 # extra_figure.please_add_plot(copy.deepcopy(plot1), row=0, col=0)
@@ -56,5 +60,5 @@ main_figure.please_add_plot(plot2, row=1, col=0, sharex_plot=plot1)
 # Set the animation values and then render
 main_figure.please_add_dataset(ds)
 main_figure.please_set_animation_values(t_values, "time")
-main_figure.please_preview()
-# main_figure.please_render(Path("renders/main_figure/"))
+# main_figure.please_preview()
+main_figure.please_render(Path("renders/main_figure/"))
