@@ -61,6 +61,9 @@ class Plot:
                 dataset[self.axis_keys["z"]],
                 **self.plot_kwargs,
             )
+        for key, val in self.ax_kwargs.items():
+            if "animation_value" in val:
+                self.ax_kwargs[key] = eval(f"f{val}")
         self.ax.set(**self.ax_kwargs)
         # self.apply_axes_config()
 
@@ -99,43 +102,16 @@ class Plot:
             "generate_data method must be implemented by plot/ classes."
         )
 
-    # def single_ax_config(self, data, ax_letter):
-    #     ax_config = {}
-    #     if self.axis_labels[ax_letter] is not None:
-    #         ax_config[f"{ax_letter}label"] = self.axis_labels[ax_letter]
-    #     else:
-    #         ax_config[f"{ax_letter}label"] = self.axis_keys.get(ax_letter)
+    def create_axes_config(self, data):
+        necessary_axes = ["x", "y"]
+        if self.axis_keys.get("z") is not None:
+            necessary_axes.append("z")
 
-    #     if self.axis_limits[ax_letter] is not None:
-    #         ax_config[f"{ax_letter}lim"] = self.axis_limits[ax_letter]
-    #     return ax_config
-
-    # def create_axes_config(self, data):
-    #     default_axes_config = {
-    #         "xlabel": self.axis_labels.get(["x"]),
-    #         "ylabel": self.axis_labels.get(["y"]),
-    #         "zlabel": self.axis_labels.get(["z"]),
-    #     }
-    #     default_axes_config.update(self.plot)
-
-    #     if self.axis_keys.get("z") is not None:
-    #         default_axes_config = self.single_ax_config(data, "z")
-    # zdata = data[self.axis_keys.get("z")]
-    # default_axes_config["z"] = {
-    #     "label": self.axis_keys.get("z"),
-    #     "limits": (zdata.min(), zdata.max()),
-    # }
-    # self.axes_config = default_axes_config
-
-    def apply_axes_config(self):
-        for axis, settings in self.axes_config.items():
-            if axis == "x":
-                self.ax.set_xlabel(settings["label"])
-                self.ax.set_xlim(settings["limits"])
-            elif axis == "y":
-                self.ax.set_ylabel(settings["label"])
-                self.ax.set_ylim(settings["limits"])
-            elif axis == "z" and hasattr(self.ax, "set_zlabel"):
-                # Only apply z-axis settings if it's a 3D plot
-                self.ax.set_zlabel(settings["label"])
-                self.ax.set_zlim(settings["limits"])
+        for axis in necessary_axes:
+            if self.ax_kwargs.get(f"{axis}lim") is None:
+                # Set the axis limits to be offset from the min and max values
+                # of the data if they are not specified
+                min_value = data[self.axis_keys.get(axis)].min()
+                max_value = data[self.axis_keys.get(axis)].max()
+                offset = 0.025 * np.abs(max_value - min_value)
+                self.ax_kwargs[f"{axis}lim"] = (min_value - offset, max_value + offset)
