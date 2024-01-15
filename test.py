@@ -29,7 +29,7 @@ plot2 = Plot(
     },
     animation_kwargs={
         "animation_style": "Trailing",
-        "rotate": {"azim": (15, 75), "elev": (45, 75)},
+        "rotate": {"azim": (15, 75)},
     },
 )
 # plot3 = Scatter(
@@ -40,7 +40,14 @@ plot2 = Plot(
 
 
 # Create a figure and add the plots
-main_figure = Figure(nrows=2, ncols=1)
+figure_kwargs = {"figsize": (20, 10), "layout": None}
+gs_kwargs = {"height_ratios": [1, 2], "hspace": 1}
+main_figure = Figure(
+    nrows=2,
+    ncols=1,
+    fig_kwargs=figure_kwargs,
+    gs_kwargs=gs_kwargs,
+)
 # new_figure = Figure(nrows=4, ncols=1)
 # extra_figure = Figure(ncols=2)
 
@@ -58,7 +65,14 @@ main_figure.please_add_plot(plot2, row=1, col=0)
 # main_figure.please_add_subfigure(new_figure, row=0, col=1)
 
 # Set the animation values and then render
+font = {"size": 16}
+plt.rc("font", **font)
+plt.style.use("dark_background")
 main_figure.please_add_dataset(ds)
 main_figure.please_set_animation_values(t_values, "time")
-# main_figure.please_preview()
-main_figure.please_render(Path("renders/main_figure/"))
+# main_figure.please_preview(0)
+# main_figure.please_render_images(Path("renders/main_figure/"))
+render_settings = {"animation_duration": 3}
+main_figure.please_render_video(
+    Path("renders/test.mp4"), render_settings=render_settings
+)

@@ -29,9 +29,7 @@ class Plot:
 
         # Set the default plot_kwargs, then update with any user-specified
         # kwargs. The plot_kwargs are used in the plot call.
-        default_plot_kwargs = {
-            "color": "k",
-        }
+        default_plot_kwargs = {}
         self.plot_kwargs = default_plot_kwargs
         if plot_kwargs is not None:
             self.plot_kwargs.update(plot_kwargs)
@@ -45,6 +43,8 @@ class Plot:
             "xlabel": self.axis_keys.get("x"),
             "ylabel": self.axis_keys.get("y"),
         }
+        if self.is_3d:
+            default_ax_kwargs["zlabel"] = self.axis_keys.get("z")
         self.ax_kwargs = default_ax_kwargs
         if ax_kwargs is not None:
             self.ax_kwargs.update(ax_kwargs)
@@ -63,9 +63,8 @@ class Plot:
         if animation_kwargs is not None:
             self.animation_kwargs.update(animation_kwargs)
 
-    def draw_plot(self, dataset, animation_value, animation_key):
+    def draw_plot(self, dataset, animation_value, animation_key, plot_kwargs=None):
         plot_method = getattr(self.ax, self.plot_method)
-        # if self.axis_keys["z"] is None:
         data = filter_data(
             dataset,
             animation_value,
@@ -76,15 +75,25 @@ class Plot:
         separated_data = [
             data[self.axis_keys[axis_key]] for axis_key in self.given_axis_keys
         ]
-        plot_method(*separated_data, **self.plot_kwargs)
+        if plot_kwargs is None:
+            plot_kwargs = self.plot_kwargs
+        plot_method(*separated_data, **plot_kwargs)
+        breakpoint()
 
+    def adjust_settings(self, dataset, animation_value, animation_key):
         # Evaulate any f-strings provided in ax_kwargs
+        original_kwargs = {}
         for key, val in self.ax_kwargs.items():
-            if "animation_value" in val:
-                self.ax_kwargs[key] = eval(f"f{val}")
+            if type(val) is str:
+                if "animation_value" in val:
+                    original_kwargs[key] = val
+                    self.ax_kwargs[key] = eval(f"f{val}")
 
         # Set all the axes properties based on ax_kwargs
         self.ax.set(**self.ax_kwargs)
+
+        # replace original kwargs
+        self.ax_kwargs.update(original_kwargs)
 
         if self.is_3d:
             frame_view = {

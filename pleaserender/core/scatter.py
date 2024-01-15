@@ -14,5 +14,3 @@ class Scatter(Plot):
         """
         super().__init__(**kwargs)
         self.plot_method = "scatter"
-
-        self.kwargs = kwargs
