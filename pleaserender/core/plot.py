@@ -1,7 +1,9 @@
+import datetime
+
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pleaserender.core.util import filter_data
+from pleaserender.util import filter_data
 
 
 class Plot:
@@ -64,12 +66,34 @@ class Plot:
             self.animation_kwargs.update(animation_kwargs)
 
     def draw_plot(self, dataset, animation_value, animation_key, plot_kwargs=None):
-        plot_method = getattr(self.ax, self.plot_method)
+        """
+        Method to draw the plot. Nothing past the generic plotting in this base class
+        """
+        self.generic_plot(
+            dataset, animation_value, animation_key, plot_kwargs=plot_kwargs
+        )
+
+    def generic_plot(
+        self,
+        dataset,
+        animation_value,
+        animation_key,
+        plot_method=None,
+        plot_kwargs=None,
+        animation_kwargs=None,
+    ):
+        # Get the correct plotting method, I think this is an over-engineered way to
+        # call either ax.plot or ax.scatter. Might work for other things, idk
+        if plot_method is None:
+            plot_method = self.plot_method
+        plot_method = getattr(self.ax, plot_method)
+        if animation_kwargs is None:
+            animation_kwargs = self.animation_kwargs
         data = filter_data(
             dataset,
             animation_value,
             animation_key,
-            self.animation_kwargs["animation_style"],
+            animation_kwargs["animation_style"],
         )
         # Allows for 2 and 3 dimensional data with the same call
         separated_data = [
@@ -78,9 +102,11 @@ class Plot:
         if plot_kwargs is None:
             plot_kwargs = self.plot_kwargs
         plot_method(*separated_data, **plot_kwargs)
-        breakpoint()
 
     def adjust_settings(self, dataset, animation_value, animation_key):
+        self.generic_settings(dataset, animation_value, animation_key)
+
+    def generic_settings(self, dataset, animation_value, animation_key):
         # Evaulate any f-strings provided in ax_kwargs
         original_kwargs = {}
         for key, val in self.ax_kwargs.items():
@@ -96,20 +122,21 @@ class Plot:
         self.ax_kwargs.update(original_kwargs)
 
         if self.is_3d:
-            frame_view = {
-                "elev": self.animation_kwargs["elev"],
-                "azim": self.animation_kwargs["azim"],
-                "roll": self.animation_kwargs["roll"],
-            }
-            if self.animation_kwargs["rotate"] is not None:
-                for key, val in self.animation_kwargs["rotate"].items():
-                    current_index = np.argmax(
-                        dataset[animation_key].values == animation_value
-                    )
-                    frame_view[key] = np.linspace(*val, dataset[animation_key].size)[
-                        current_index
-                    ]
+            n_vals = dataset[animation_key].size
+            current_index = np.argmax(dataset[animation_key].values == animation_value)
+            frame_view = self.calc_frame_view(dataset, current_index, n_vals)
             self.ax.view_init(**frame_view)
+
+    def calc_frame_view(self, dataset, current_ind, n_vals):
+        frame_view = {
+            "elev": self.animation_kwargs["elev"],
+            "azim": self.animation_kwargs["azim"],
+            "roll": self.animation_kwargs["roll"],
+        }
+        if self.animation_kwargs["rotate"] is not None:
+            for key, val in self.animation_kwargs["rotate"].items():
+                frame_view[key] = np.linspace(*val, n_vals)[current_ind]
+        return frame_view
 
     def verify_data(self, dataset, animation_values, animation_key):
         """
@@ -128,7 +155,7 @@ class Plot:
         all_values_present = np.isin(animation_values, animation_data).all()
         return all_values_present
 
-    def generate_data(self, animation_values, animation_key):
+    def generate_data(self, dataset, animation_values, animation_key):
         """
         Method to generate all the data required. Not implemented in the
         core classes.

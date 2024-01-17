@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 # import pandas as pd
 import xarray as xr
+from exoverses.exovista import ExovistaSystem
 
 from pleaserender.core import Figure, Plot, Scatter
 
