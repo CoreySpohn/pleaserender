@@ -126,6 +126,7 @@ class Orbit(Scatter):
                 Key for the animation values in the plot object's dataframe
         """
 
+        return False
         if self.planet_params.get("plot"):
             # Check that we have the planet coordinate
             if "planet" not in dataset.coords:
@@ -135,10 +136,12 @@ class Orbit(Scatter):
                 animation_data = dataset.sel(planet=planet_ind)[animation_key].values
 
                 # Check if each element in animation_values is in animation_data
-                all_values_present = np.isin(animation_values, animation_data).all()
-                if not all_values_present:
-                    return False
-        return all_values_present
+                # all_values_present = np.isin(animation_values, animation_data).all()
+                # if not all_values_present:
+                #     return False
+                for ax_letter in self.axis_keys:
+                    if ax_letter not in dataset.variables:
+                        return False
 
     def generate_data(self, dataset, animation_values, animation_key):
         times = dataset["time"]

@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 from astropy.time import Time
-from coronagraphoto import coronagraph
+from coronagraphoto import coronagraph, observation
 from exoverses.base import Planet, Star, System
 from exoverses.exovista import ExovistaSystem
 
