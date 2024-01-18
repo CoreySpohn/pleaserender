@@ -22,30 +22,46 @@ coro = coronagraph.Coronagraph(coronagraph_dir)
 system = ExovistaSystem(scene)
 
 # Create some simple data for the plots
-t_values = Time(np.linspace(2000, 2001, 100), format="decimalyear")
+t_values = Time(np.linspace(2000, 2020, 200), format="decimalyear")
 # t_values = Time(np.linspace(2000, 2010, 100), format="decimalyear")
 
 # Create Plot instances
 animation_kwargs = {}
 # animation_kwargs = {"rotate": {"azim": (1, 89)}, "elev": 0}
 # animation_kwargs = {"rotate": {"azim": (44, 46)}}
-# animation_kwargs = {"rotate": None, "azim": 91, "elev": 0}
-planet_params = {}
-# planet_params = {"planets_to_plot": [0, 1, 2]}
-# system.planets[0].mass = 1 * u.Mjup
+# animation_kwargs = {"rotate": None, "azim": 270, "elev": 90}
+# planet_params = {}
+# planet_params_3d = {"planets_to_plot": [1], "project": ["x", "y", "z"]}
+planet_params_3d = {"project": {"point": ["x", "y", "z"], "trail": ["x", "y", "z"]}}
+# planet_params_2d = {"planets_to_plot": [1]}
+planet_params_2d = {}
+
+# system.planets[1].mass = 1 * u.Mjup
 # system.star.midplane_I = 0 * u.deg
 # system.star.midplanet_PA = 0 * u.deg
 # system.planets[0].inc = 90 * u.deg
 # system.planets[0].w = 0 * u.deg
 # system.planets[0].W = 0 * u.deg
-plot1 = Orbit(system, planet_params=planet_params, animation_kwargs=animation_kwargs)
+ax_kwargs = {}
+plot1 = Orbit(
+    system,
+    planet_params=planet_params_3d,
+    animation_kwargs=animation_kwargs,
+    ax_kwargs=ax_kwargs,
+)
+
+plot2 = Orbit(
+    system, planet_params=planet_params_2d, plane_2d="z", ax_kwargs={"aspect": "equal"}
+)
 
 # Create a figure and add the plots
-figure_kwargs = {"figsize": (10, 10), "layout": None}
-main_figure = Figure(fig_kwargs=figure_kwargs)
+figure_kwargs = {"figsize": (15, 10), "layout": None}
+main_figure = Figure(fig_kwargs=figure_kwargs, ncols=2)
 
 # Add plots to the figures
 main_figure.please_add_plot(plot1)
+main_figure.please_add_plot(plot2, col=1)
+
 
 # Set the animation values and then render
 plt.style.use("dark_background")

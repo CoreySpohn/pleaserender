@@ -28,10 +28,10 @@ def filter_data(dataset, animation_value, animation_key, animation_style):
             #             dataset[animation_key].values <= current_index, drop=True
             #             )
 
-def calc_observer_position(elev, azim, dist):
+def calc_viewer_position(elev, azim, dist):
     """
-    This is a simple function to calculate the observer's position in Cartesian
-    coordinates given the observer's elevation and azimuth angles and distance
+    This is a simple function to calculate the viewer's position in Cartesian
+    coordinates given the viewer's elevation and azimuth angles and distance
     from the origin. I think it is correct but re-use at your own risk.
     """
     # Convert angles to radians
@@ -44,20 +44,76 @@ def calc_observer_position(elev, azim, dist):
 
     return u.Quantity([x, y, z])
 
-def lims_and_ticks(ax, axes, val0, valf, dval, offset, use_minor=True):
-    if 'x' in axes:
-        ax.set_xlim([val0-offset, valf+offset])
-        ax.set_xticks(np.arange(val0, valf+dval/4, dval))
-        if use_minor:
-            ax.set_xticks(np.arange(val0+dval/2, valf+dval/4, dval), minor=True)
-    if 'y' in axes:
-        ax.set_ylim([val0-offset, valf+offset])
-        ax.set_yticks(np.arange(val0, valf+dval/4, dval))
-        if use_minor:
-            ax.set_yticks(np.arange(val0+dval/2, valf+dval/4, dval), minor=True)
-    if 'z' in axes:
-        ax.set_zlim([val0-offset, valf+offset])
-        ax.set_zticks(np.arange(val0, valf+dval/4, dval))
-        if use_minor:
-            ax.set_zticks(np.arange(val0+dval/2, valf+dval/4, dval), minor=True)
-    return ax
+def get_nice_number(value, round=False):
+    # Exponent of base 10
+    exponent = np.floor(np.log10(value))
+
+    # Fractional part
+    fraction = value / 10**exponent
+
+    if round:
+        if fraction < 1.5:
+            nice_fraction = 1
+        elif fraction < 3:
+            nice_fraction = 2
+        elif fraction < 7:
+            nice_fraction = 5
+        else:
+            nice_fraction = 10
+    else:
+        if fraction <= 1:
+            nice_fraction = 1
+        elif fraction <= 2:
+            nice_fraction = 2
+        elif fraction <= 5:
+            nice_fraction = 5
+        else:
+            nice_fraction = 10
+
+    return nice_fraction * 10**exponent
+
+def calculate_axis_limits_and_ticks(data_min, data_max, num_ticks=3):
+    range_span = get_nice_number(data_max - data_min, round=True)
+    tick_spacing = get_nice_number(range_span / (num_ticks - 1), round=True)
+    nice_min = np.floor(data_min / tick_spacing) * tick_spacing
+    nice_max = np.ceil(data_max / tick_spacing) * tick_spacing
+    offset = 0.025 * tick_spacing
+
+    return nice_min, nice_max, tick_spacing, offset
+
+def calc_object_viewer_vectors(dataset, current_ind, current_view, viewer_dist, unit=u.AU):
+    # Calculate the viewer-origin vector
+    r_v = calc_viewer_position(
+        current_view["elev"], current_view["azim"], viewer_dist
+    )
+
+    # Calculate the object-origin vector
+    r_o = (
+        np.array(
+            [
+                dataset["x"][current_ind],
+                dataset["y"][current_ind],
+                dataset["z"][current_ind],
+            ]
+        )
+        * unit
+    )
+
+    # Calculate the object-viewer vector
+    r_ov = r_o - r_v
+    return r_v, r_o, r_ov
+
+def calc_object_viewer_angle(r_o, r_ov):
+    object_viewer_angle = np.arccos(
+        -np.dot(r_ov, r_o) / (np.linalg.norm(r_ov) * np.linalg.norm(r_o))
+    )
+    return object_viewer_angle
+
+def calc_object_viewer_orth_dist(r_v, r_o):
+    # Unit vector in the direction of r_vs
+    r_v_hat = r_v / np.linalg.norm(r_v)
+
+    # Scalar projection of r_o onto r_v
+    scalar_proj = np.dot(r_o, r_v_hat)
+    o_v_orth_dist = np.linalg.norm(r_v) - scalar_proj
+    return o_v_orth_dist

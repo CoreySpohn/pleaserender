@@ -1,16 +1,15 @@
-import datetime
+import copy
+import inspect
 
-import matplotlib.pyplot as plt
 import numpy as np
 
-from pleaserender.util import filter_data
+import pleaserender.util as util
 
 
 class Plot:
     def __init__(
         self,
         axis_keys=None,
-        # animation_style="Cumulative",
         plot_kwargs=None,
         ax_kwargs=None,
         animation_kwargs=None,
@@ -78,6 +77,7 @@ class Plot:
         dataset,
         animation_value,
         animation_key,
+        axis_keys=None,
         plot_method=None,
         plot_kwargs=None,
         animation_kwargs=None,
@@ -89,16 +89,18 @@ class Plot:
         plot_method = getattr(self.ax, plot_method)
         if animation_kwargs is None:
             animation_kwargs = self.animation_kwargs
-        data = filter_data(
+        data = util.filter_data(
             dataset,
             animation_value,
             animation_key,
             animation_kwargs["animation_style"],
         )
+        ax_keys = self.given_axis_keys
+        if axis_keys is not None:
+            ax_keys = axis_keys
+
         # Allows for 2 and 3 dimensional data with the same call
-        separated_data = [
-            data[self.axis_keys[axis_key]] for axis_key in self.given_axis_keys
-        ]
+        separated_data = [data[self.axis_keys[axis_key]] for axis_key in ax_keys]
         if plot_kwargs is None:
             plot_kwargs = self.plot_kwargs
         plot_method(*separated_data, **plot_kwargs)
@@ -115,8 +117,18 @@ class Plot:
                     original_kwargs[key] = val
                     self.ax_kwargs[key] = eval(f"f{val}")
 
+        # Get the keys that are settable with ax.set
+        ax_set_keys = inspect.signature(self.ax.set).parameters.keys()
+        settable_kwargs = {
+            key: val for key, val in self.ax_kwargs.items() if key in ax_set_keys
+        }
         # Set all the axes properties based on ax_kwargs
-        self.ax.set(**self.ax_kwargs)
+        self.ax.set(**settable_kwargs)
+
+        unsettable_kwargs = {
+            key: val for key, val in self.ax_kwargs.items() if key not in ax_set_keys
+        }
+        self.handle_unsettable_kwargs(unsettable_kwargs)
 
         # replace original kwargs
         self.ax_kwargs.update(original_kwargs)
@@ -124,18 +136,31 @@ class Plot:
         if self.is_3d:
             n_vals = dataset[animation_key].size
             current_index = np.argmax(dataset[animation_key].values == animation_value)
-            frame_view = self.calc_frame_view(dataset, current_index, n_vals)
+            frame_view = self.calc_frame_view(current_index, n_vals)
             self.ax.view_init(**frame_view)
 
-    def calc_frame_view(self, dataset, current_ind, n_vals):
-        frame_view = {
-            "elev": self.animation_kwargs["elev"],
-            "azim": self.animation_kwargs["azim"],
-            "roll": self.animation_kwargs["roll"],
-        }
-        if self.animation_kwargs["rotate"] is not None:
-            for key, val in self.animation_kwargs["rotate"].items():
-                frame_view[key] = np.linspace(*val, n_vals)[current_ind]
+    def calc_frame_view(self, current_ind, n_vals):
+        if self.is_3d:
+            frame_view = {
+                "elev": self.animation_kwargs["elev"],
+                "azim": self.animation_kwargs["azim"],
+                "roll": self.animation_kwargs["roll"],
+            }
+            if self.animation_kwargs["rotate"] is not None:
+                for key, val in self.animation_kwargs["rotate"].items():
+                    frame_view[key] = np.linspace(*val, n_vals)[current_ind]
+        else:
+            plane = [
+                axis for axis in ["x", "y", "z"] if axis not in self.given_axis_keys
+            ]
+            frame_view = {"azim": 0, "elev": 0, "roll": 0}
+            if plane == "x":
+                pass
+            elif plane == "y":
+                frame_view["azim"] = 270
+            else:
+                frame_view["azim"] = 270
+                frame_view["elev"] = 90
         return frame_view
 
     def verify_data(self, dataset, animation_values, animation_key):
@@ -171,15 +196,118 @@ class Plot:
         Currently sets the axis limits.
         """
         # Set the axis limits if they are not specified
+        self.handle_axes_limits_and_ticks(data, self.ax_kwargs.get("equal_lims"))
+
+    def handle_axes_limits_and_ticks(self, data, equal=False):
         necessary_axes = ["x", "y"]
         if self.axis_keys.get("z") is not None:
             necessary_axes.append("z")
 
-        for axis in necessary_axes:
-            if self.ax_kwargs.get(f"{axis}lim") is None:
-                # Set the axis limits to be offset from the min and max values
-                # of the data if they are not specified
-                min_value = data[self.axis_keys.get(axis)].min()
-                max_value = data[self.axis_keys.get(axis)].max()
-                offset = 0.025 * np.abs(max_value - min_value)
-                self.ax_kwargs[f"{axis}lim"] = (min_value - offset, max_value + offset)
+        using_set = [False] * len(necessary_axes)
+        for i, ax_letter in enumerate(necessary_axes):
+            if self.ax_kwargs.get(f"{ax_letter}lim") is not None:
+                using_set[i] = True
+        using_unset = [not val for val in using_set]
+        if any(using_unset):
+            lims_exist = self.ax_kwargs.get("lims") is not None
+            if not lims_exist:
+                self.ax_kwargs["lims"] = {}
+        self.ax_lims_helper(data, np.array(necessary_axes)[using_unset], equal=equal)
+
+    def ax_lims_helper(self, data, necessary_axes, equal=False):
+        if equal:
+            max_val = 0
+            for ax_letter in necessary_axes:
+                ax_data = data[self.axis_keys.get(ax_letter)]
+                max_val = max(max_val, np.abs(ax_data.max()))
+                max_val = max(max_val, np.abs(ax_data.min()))
+            ax_lims = util.calculate_axis_limits_and_ticks(-max_val, max_val)
+            for ax_letter in necessary_axes:
+                self.ax_kwargs["lims"][ax_letter] = ax_lims
+        else:
+            for ax_letter in necessary_axes:
+                axlims = util.calculate_axis_limits_and_ticks(
+                    data[self.axis_keys.get(ax_letter)].min(),
+                    data[self.axis_keys.get(ax_letter)].max(),
+                )
+
+                self.ax_kwargs["lims"][ax_letter] = axlims
+
+    def handle_unsettable_kwargs(self, kwargs):
+        if "lims" in kwargs:
+            # lims is a tuple of (val0, valf, dval, offset)
+            # Check if the lims are already set
+            for ax_letter in self.given_axis_keys:
+                if self.ax_kwargs.get(f"{ax_letter}lim") is None:
+                    axlims = kwargs["lims"][ax_letter]
+                    self.set_lims_and_ticks(*axlims, use_minor=~self.is_3d)
+                    # assert (
+                    #     self.ax_kwargs.get(f"{ax_letter}lim") is None
+                    # ), f"lims and {ax_letter}lim cannot both be set."
+
+    def set_lims_and_ticks(self, val0, valf, dval, offset, use_minor=True):
+        for ax_letter in self.given_axis_keys:
+            set_lim = getattr(self.ax, f"set_{ax_letter}lim")
+            set_ticks = getattr(self.ax, f"set_{ax_letter}ticks")
+            set_lim([val0 - offset, valf + offset])
+            set_ticks(np.arange(val0, valf + dval / 4, dval))
+            if use_minor:
+                set_ticks(np.arange(val0 + dval / 2, valf + dval / 4, dval), minor=True)
+
+    def project_point(
+        self,
+        dataset,
+        animation_value,
+        animation_key,
+        ax_letter,
+        object,
+        projection_kwargs=None,
+    ):
+        min_value = self.ax_kwargs["lims"][ax_letter][0]
+        _args = (dataset, animation_value, animation_key)
+        _axis_keys = ["x", "y", "z"]
+        _axis_keys.remove(ax_letter)
+        axis_keys = {key: key for key in _axis_keys}
+        default_projection_kwargs = {"zs": min_value, "zdir": ax_letter, "alpha": 0.1}
+        if projection_kwargs is not None:
+            default_projection_kwargs.update(projection_kwargs)
+        # Plot the planet's position with a marker
+        position_kwargs = copy.deepcopy(object.plot_kwargs)
+        position_kwargs.update(default_projection_kwargs)
+        position_kwargs["facecolor"] = "grey"
+        position_kwargs["edgecolor"] = "grey"
+        self.generic_plot(
+            *_args,
+            axis_keys=axis_keys,
+            plot_method="scatter",
+            animation_kwargs={"animation_style": "Single point"},
+            plot_kwargs=position_kwargs,
+        )
+
+    def project_trail(
+        self,
+        dataset,
+        animation_value,
+        animation_key,
+        ax_letter,
+        projection_kwargs=None,
+    ):
+        min_value = self.ax_kwargs["lims"][ax_letter][0]
+        _args = (dataset, animation_value, animation_key)
+        _axis_keys = ["x", "y", "z"]
+        _axis_keys.remove(ax_letter)
+        axis_keys = {key: key for key in _axis_keys}
+        default_projection_kwargs = {"zs": min_value, "zdir": ax_letter, "alpha": 0.1}
+        if projection_kwargs is not None:
+            default_projection_kwargs.update(projection_kwargs)
+        # Project the planet's trail
+        projection_trail_kwargs = copy.deepcopy(default_projection_kwargs)
+        projection_trail_kwargs["linestyle"] = "-"
+        projection_trail_kwargs["color"] = "w"
+        self.generic_plot(
+            *_args,
+            axis_keys=axis_keys,
+            plot_method="plot",
+            animation_kwargs={"animation_style": "Cumulative"},
+            plot_kwargs=projection_trail_kwargs,
+        )
