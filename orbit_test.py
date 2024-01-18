@@ -15,7 +15,6 @@ from pleaserender.exoplanet_plots import Orbit
 # Input files
 coronagraph_dir = Path("input/coronagraphs/LUVOIR-B-VC6_timeseries/")
 scene = Path("input/scenes/999-HIP_-TYC_SUN-mv_4.83-L_1.00-d_10.00-Teff_5778.00.fits")
-coronagraph_dir = Path("input/coronagraphs/LUVOIR-B-VC6_timeseries/")
 
 # Create a system and coronagraph
 coro = coronagraph.Coronagraph(coronagraph_dir)
@@ -23,7 +22,6 @@ system = ExovistaSystem(scene)
 
 # Create some simple data for the plots
 t_values = Time(np.linspace(2000, 2020, 200), format="decimalyear")
-# t_values = Time(np.linspace(2000, 2010, 100), format="decimalyear")
 
 # Create Plot instances
 animation_kwargs = {}

@@ -41,7 +41,10 @@ class Image(Plot):
         new_coords = {
             "x (pix)": pixels,
             "y (pix)": pixels,
+            "coronagraph": self.coronagraph.name,
         }
+        if "coronagraph" in dataset.coords:
+            breakpoint()
         dataset = dataset.assign_coords(**new_coords)
         image_data = np.zeros(
             (len(times), self.coronagraph.npixels, self.coronagraph.npixels)
@@ -53,8 +56,10 @@ class Image(Plot):
                 self.system,
                 self.observing_scenario,
             )
-            image = self.observation.image_xr.sum("frame")
-            image_data[i] = image["total signal"].data
+            self.observation.create_count_rates()
+            self.observation.count_photons()
+            image = self.observation.data
+            image_data[i] = image["total"].data
         image_xr = xr.DataArray(
             image_data,
             coords=[times, pixels, pixels],
@@ -64,7 +69,9 @@ class Image(Plot):
         return dataset
 
     def draw_plot(self, dataset, animation_value, animation_key):
-        photon_counts = dataset.image.sel(time=animation_value)
+        photon_counts = dataset.image.sel(
+            time=animation_value, coronagraph=self.coronagraph.name
+        )
         self.ax.imshow(photon_counts, origin="lower", cmap="viridis")
 
     def ax_lims_helper(self, data, necessary_axes, equal=False):

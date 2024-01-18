@@ -16,17 +16,21 @@ from synphot.models import (BlackBodyNorm1D, Box1D, Empirical1D, Gaussian1D,
 from pleaserender.core import Figure, Plot, Scatter
 from pleaserender.exoplanet_plots import Image, Orbit
 
+plt.style.use("dark_background")
+
 # Create some simple data for the plots
-times = Time(np.linspace(2000, 2005, 100), format="decimalyear")
-# times = Time(np.linspace(2000, 2010, 100), format="decimalyear")
+times = Time(np.linspace(2000, 2005, 10), format="decimalyear")
 
 # Input files
-coronagraph_dir = Path("input/coronagraphs/LUVOIR-B-VC6_timeseries/")
+coronagraph1_dir = Path("input/coronagraphs/LUVOIR-B-VC6_timeseries/")
+coronagraph2_dir = Path(
+    "input/coronagraphs/LUVOIR-A_APLC_18bw_medFPM_2021-05-07_Dyn10pm-nostaticabb"
+)
 scene = Path("input/scenes/999-HIP_-TYC_SUN-mv_4.83-L_1.00-d_10.00-Teff_5778.00.fits")
-coronagraph_dir = Path("input/coronagraphs/LUVOIR-B-VC6_timeseries/")
 
 # Create a system and coronagraph
-coro = coronagraph.Coronagraph(coronagraph_dir)
+coro1 = coronagraph.Coronagraph(coronagraph1_dir)
+coro2 = coronagraph.Coronagraph(coronagraph2_dir)
 system = ExovistaSystem(scene)
 
 # GETTING EXOVISTA POSITION DATA
@@ -46,7 +50,6 @@ for i, planet_ind in enumerate(planet_inds):
 x_xr = xr.DataArray(x_data, coords=[("time", times64), ("planet", planet_inds)])
 y_xr = xr.DataArray(y_data, coords=[("time", times64), ("planet", planet_inds)])
 z_xr = xr.DataArray(z_data, coords=[("time", times64), ("planet", planet_inds)])
-
 # # Add the exovista data to the dataset
 dataset = dataset.assign(_x=x_xr, _y=y_xr, _z=z_xr)
 
@@ -80,60 +83,33 @@ obs_scen = {
 observing_scenario = observing_scenario.ObservingScenario(obs_scen)
 
 
-# Create Plot instances
-animation_kwargs = {}
-# animation_kwargs = {"rotate": {"azim": (1, 89)}, "elev": 0}
-# animation_kwargs = {"rotate": {"azim": (44, 46)}}
-# animation_kwargs = {"rotate": None, "azim": 270, "elev": 90}
-# planet_params = {}
-# planet_params_3d = {"planets_to_plot": [1], "project": ["x", "y", "z"]}
+# Define plots
 planet_params_3d = {"project": {"point": ["x", "y", "z"], "trail": ["x", "y", "z"]}}
-# planet_params_2d = {"planets_to_plot": [1]}
-planet_params_2d = {}
+plot3d = Orbit(system, planet_params=planet_params_3d)
+plot2d = Orbit(system, plane_2d="z", ax_kwargs={"aspect": "equal"})
+plot_image1 = Image(system, coro1, observing_scenario, ax_kwargs={"title": "Vector"})
+plot_image2 = Image(system, coro2, observing_scenario, ax_kwargs={"title": "APLC"})
+# plot2d_exovista = Orbit(
+#     system,
+#     plane_2d="z",
+#     axis_keys={"x": "_x", "y": "_y"},
+#     ax_kwargs={"aspect": "equal"},
+# )
 
-# system.planets[1].mass = 1 * u.Mjup
-# system.star.midplane_I = 0 * u.deg
-# system.star.midplanet_PA = 0 * u.deg
-# system.planets[0].inc = 90 * u.deg
-# system.planets[0].w = 0 * u.deg
-# system.planets[0].W = 0 * u.deg
-ax_kwargs = {}
-plot3d = Orbit(
-    system,
-    planet_params=planet_params_3d,
-    animation_kwargs=animation_kwargs,
-    ax_kwargs=ax_kwargs,
-)
-
-plot2d = Orbit(
-    system, planet_params=planet_params_2d, plane_2d="z", ax_kwargs={"aspect": "equal"}
-)
-plot_image = Image(system, coro, observing_scenario)
-
-plot2d_exovista = Orbit(
-    system,
-    plane_2d="z",
-    axis_keys={"x": "_x", "y": "_y"},
-    ax_kwargs={"aspect": "equal"},
-)
 # Create a figure and add the plots
 figure_kwargs = {"figsize": (15, 10), "layout": None}
 main_figure = Figure(fig_kwargs=figure_kwargs, nrows=2, ncols=2)
 main_figure.please_add_dataset(dataset)
+main_figure.please_set_animation_values(times, "time")
 
 # Add plots to the figures
 main_figure.please_add_plot(plot3d)
-main_figure.please_add_plot(plot_image, col=1)
-main_figure.please_add_plot(plot2d, row=1)
-main_figure.please_add_plot(plot2d_exovista, row=1, col=1)
-
+main_figure.please_add_plot(plot2d, col=1)
+main_figure.please_add_plot(plot_image1, row=1)
+main_figure.please_add_plot(plot_image2, row=1, col=1)
 
 # Set the animation values and then render
-plt.style.use("dark_background")
-
-main_figure.please_set_animation_values(times, "time")
 render_settings = {"animation_duration": 5}
-# main_figure.please_render_images(Path("renders/test"))
 main_figure.please_render_video(
-    Path("renders/test.mp4"), render_settings=render_settings
+    Path("renders/coro_test.mp4"), render_settings=render_settings
 )
