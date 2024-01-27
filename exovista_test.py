@@ -58,7 +58,7 @@ coords = [
     ("time", times64),
     ("index", planet_inds),
     ("object", ["planet"]),
-    ("frame", ["sky"]),
+    ("frame", ["helio-sky"]),
 ]
 x_xr = xr.DataArray(x_data[..., np.newaxis, np.newaxis], coords=coords)
 y_xr = xr.DataArray(y_data[..., np.newaxis, np.newaxis], coords=coords)
@@ -69,7 +69,7 @@ y_pix_xr = xr.DataArray(y_pix_data[..., np.newaxis, np.newaxis], coords=coords)
 dataset = dataset.assign(
     ev_x=x_xr, ev_y=y_xr, ev_z=z_xr, ev_x_pix=x_pix_xr, ev_y_pix=y_pix_xr
 )
-dataset["ev_x_pix"].sel(object="planet", index=0, frame="sky")
+dataset["ev_x_pix"].sel(object="planet", index=0, frame="helio-sky")
 
 
 wavelength = 500 * u.nm
@@ -112,10 +112,19 @@ plot2d = Orbit(
     plane_2d="z",
     ax_kwargs={"aspect": "equal"},
     orbit_params={
-        "frame": "sky",
-        "unit": u.pixel,
-        "distance": system.star.dist,
-        "pixel_scale": system.pixel_scale,
+        "frame": "bary-sky",
+        "propagation": "nbody",
+        "unit": u.AU,
+    },
+)
+plot2d_helio = Orbit(
+    system,
+    plane_2d="z",
+    ax_kwargs={"aspect": "equal"},
+    orbit_params={
+        "frame": "helio-sky",
+        "propagation": "nbody",
+        "unit": u.AU,
     },
 )
 # plot2d_sky = Orbit(
@@ -130,13 +139,13 @@ plot2d = Orbit(
 #     axis_keys={"x": "ev_x", "y": "ev_y"},
 #     ax_kwargs={"aspect": "equal"},
 # )
-plot2d_exovista_pix = Orbit(
-    system,
-    plane_2d="z",
-    axis_keys={"x": "ev_x_pix", "y": "ev_y_pix"},
-    ax_kwargs={"aspect": "equal"},
-    orbit_params={"frame": "sky"},
-)
+# plot2d_exovista_pix = Orbit(
+#     system,
+#     plane_2d="z",
+#     axis_keys={"x": "ev_x_pix", "y": "ev_y_pix"},
+#     ax_kwargs={"aspect": "equal"},
+#     orbit_params={"frame": "helio-sky", "propagation": "nbody"},
+# )
 
 # Create a figure and add the plots
 figure_kwargs = {"figsize": (15, 10), "layout": None}
@@ -147,7 +156,8 @@ main_figure.please_set_animation_values(times, "time")
 # Add plots to the figures
 # main_figure.please_add_plot(plot3d)
 main_figure.please_add_plot(plot2d, col=0)
-main_figure.please_add_plot(plot2d_exovista_pix, col=1)
+main_figure.please_add_plot(plot2d_helio, col=1)
+# main_figure.please_add_plot(plot2d_exovista_pix, col=1)
 # main_figure.please_add_plot(plot2d_sky, col=1)
 # main_figure.please_add_plot(plot2d_exovista, col=1)
 # main_figure.please_add_plot(plot_image1, row=1)

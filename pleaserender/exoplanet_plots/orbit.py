@@ -43,14 +43,14 @@ class Orbit(Scatter):
         """
         # Set the default orbit params
         # coords can be barycentric or heliocentric
-        # integration can be 'kepler' or 'nbody'
+        # propagation can be 'kepler' or 'nbody'
         # units can be distance, angular, or pixels
         # if units are angular, then a distance must be specified
         # if units are pixels, then a pixel scale and a distance must be
         # specified
         default_orbit_params = {
-            "frame": "barycentric",
-            "integration": "kepler",
+            "frame": "bary",
+            "propagation": "kepler",
             "convention": "exovista",
             "unit": u.AU,
             "distance": None,
@@ -167,13 +167,35 @@ class Orbit(Scatter):
         Adds the x, y, z coordinates for the planets to the dataset
         """
         times = dataset["time"]
-        _da = self.system.propagate(
-            Time(times),
-            method=self.orbit_params["integration"],
-            frame=self.orbit_params["frame"],
-            convention=self.orbit_params["convention"],
-        )
-        dataset = dataset.update(_da)
+        # Check for data of all planets that should be plotted
+        if np.all(np.isnan(dataset["x"].sel(prop=self.orbit_params["propagation"]))):
+            _da = self.system.propagate(
+                Time(times),
+                ds=dataset,
+                prop_method=self.orbit_params["propagation"],
+                frame=self.orbit_params["frame"],
+                convention=self.orbit_params["convention"],
+            )
+        else:
+            _da = self.system.convert_to_frame(
+                dataset,
+                prop_method=self.orbit_params["propagation"],
+                frame=self.orbit_params["frame"],
+                convention=self.orbit_params["convention"],
+            )
+        # Update values only where they are NaN in dataset
+        merged_ds = xr.merge([dataset, _da])
+        for var in dataset.data_vars:
+            # Check if the variable is present in both datasets
+            if var in _da.data_vars:
+                # Use np.where to update only NaN values
+                merged_ds[var].values = np.where(
+                    np.isnan(dataset[var].values),
+                    _da[var].values,
+                    dataset[var].values,
+                )
+        dataset = merged_ds
+        # dataset = dataset.update(_da)
         dataset = self.convert_units(dataset)
 
         return dataset
@@ -218,7 +240,10 @@ class Orbit(Scatter):
 
     def get_planet_da(self, planet_ind, dataset):
         planet_dataset = dataset.sel(
-            object="planet", index=planet_ind, frame=self.orbit_params["frame"]
+            object="planet",
+            index=planet_ind,
+            frame=self.orbit_params["frame"],
+            prop=self.orbit_params["propagation"],
         )
         return planet_dataset
 
