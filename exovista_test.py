@@ -142,6 +142,8 @@ plot2d_exovista = Orbit(
     ax_kwargs={"aspect": "equal", "lims": {"x": (-10, 10), "y": (-10, 10)}},
     orbit_params={"frame": "helio-sky", "propagation": "nbody", "unit": u.AU},
 )
+plot_image1 = Image(system, coro1, observing_scenario, ax_kwargs={"title": "Vector"})
+plot_image2 = Image(system, coro2, observing_scenario, ax_kwargs={"title": "APLC"})
 # plot2d_exovista_pix = Orbit(
 #     system,
 #     plane_2d="z",
@@ -151,8 +153,8 @@ plot2d_exovista = Orbit(
 # )
 
 # Create a figure and add the plots
-figure_kwargs = {"figsize": (15, 10), "layout": None}
-main_figure = Figure(fig_kwargs=figure_kwargs, ncols=2)
+figure_kwargs = {"figsize": (15, 15), "layout": None}
+main_figure = Figure(fig_kwargs=figure_kwargs, ncols=2, nrows=2)
 main_figure.please_add_dataset(dataset)
 main_figure.please_set_animation_values(times, "time")
 
@@ -163,8 +165,8 @@ main_figure.please_add_plot(plot2d_exovista, col=1)
 # main_figure.please_add_plot(plot2d_exovista_pix, col=1)
 # main_figure.please_add_plot(plot2d_helio, col=1)
 # main_figure.please_add_plot(plot2d_sky, col=1)
-# main_figure.please_add_plot(plot_image1, row=1)
-# main_figure.please_add_plot(plot_image2, row=1, col=1)
+main_figure.please_add_plot(plot_image1, row=1)
+main_figure.please_add_plot(plot_image2, row=1, col=1)
 
 # Set the animation values and then render
 render_settings = {"animation_duration": 5}

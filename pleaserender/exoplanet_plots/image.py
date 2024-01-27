@@ -6,6 +6,7 @@ import xarray as xr
 from astropy.time import Time
 from coronagraphoto.observation import Observation
 from coronagraphoto.observing_scenario import ObservingScenario
+from tqdm import tqdm
 
 from pleaserender.core import Plot
 
@@ -55,12 +56,15 @@ class Image(Plot):
         image_data = np.zeros(
             (len(times), self.coronagraph.npixels, self.coronagraph.npixels)
         )
-        for i, time in enumerate(times):
+        for i, time in enumerate(
+            tqdm(times, desc=f"Generating images for {self.coronagraph.name}")
+        ):
             self.observing_scenario.scenario["time"] = Time(time)
             self.observation = Observation(
                 self.coronagraph,
                 self.system,
                 self.observing_scenario,
+                logging_level="WARNING",
             )
             self.observation.create_count_rates()
             self.observation.count_photons()
