@@ -221,10 +221,16 @@ class Plot:
         if equal:
             max_val = 0
             for ax_letter in necessary_axes:
-                ax_data = data[self.axis_keys.get(ax_letter)]
-                max_val = max(max_val, np.abs(ax_data.max()))
-                max_val = max(max_val, np.abs(ax_data.min()))
-            ax_lims = util.calculate_axis_limits_and_ticks(-max_val, max_val)
+                if ax_lims := self.ax_kwargs["lims"].get(ax_letter):
+                    if len(ax_lims) == 2:
+                        ax_lims = util.calculate_axis_limits_and_ticks(
+                            *ax_lims, exact=True
+                        )
+                else:
+                    ax_data = data[self.axis_keys.get(ax_letter)].values
+                    max_val = max(max_val, np.abs(ax_data.max()))
+                    max_val = max(max_val, np.abs(ax_data.min()))
+                    ax_lims = util.calculate_axis_limits_and_ticks(-max_val, max_val)
             for ax_letter in necessary_axes:
                 self.ax_kwargs["lims"][ax_letter] = ax_lims
         else:

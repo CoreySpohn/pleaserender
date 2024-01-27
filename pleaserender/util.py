@@ -72,11 +72,15 @@ def get_nice_number(value, round=False):
 
     return nice_fraction * 10**exponent
 
-def calculate_axis_limits_and_ticks(data_min, data_max, num_ticks=4):
+def calculate_axis_limits_and_ticks(data_min, data_max, num_ticks=5, exact=False):
     range_span = get_nice_number(data_max - data_min, round=True)
     tick_spacing = get_nice_number(range_span / (num_ticks - 1), round=True)
-    nice_min = np.floor(data_min / tick_spacing) * tick_spacing
-    nice_max = np.ceil(data_max / tick_spacing) * tick_spacing
+    if exact:
+        nice_min = data_min
+        nice_max = data_max
+    else:
+        nice_min = np.floor(data_min / tick_spacing) * tick_spacing
+        nice_max = np.ceil(data_max / tick_spacing) * tick_spacing
     offset = 0.025 * tick_spacing
 
     return nice_min, nice_max, tick_spacing, offset

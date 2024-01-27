@@ -110,40 +110,43 @@ planet_params = {}
 plot2d = Orbit(
     system,
     plane_2d="z",
-    ax_kwargs={"aspect": "equal"},
-    orbit_params={
-        "frame": "bary-sky",
-        "propagation": "nbody",
-        "unit": u.AU,
-    },
-)
-plot2d_helio = Orbit(
-    system,
-    plane_2d="z",
-    ax_kwargs={"aspect": "equal"},
+    ax_kwargs={"aspect": "equal", "lims": {"x": (-10, 10), "y": (-10, 10)}},
     orbit_params={
         "frame": "helio-sky",
         "propagation": "nbody",
         "unit": u.AU,
+        "distance": system.star.dist,
+        "pixel_scale": 0.002 * 1000 * u.mas / u.pixel,
     },
 )
+# plot2d_helio = Orbit(
+#     system,
+#     plane_2d="z",
+#     ax_kwargs={"aspect": "equal"},
+#     orbit_params={
+#         "frame": "helio-sky",
+#         "propagation": "nbody",
+#         "unit": u.AU,
+#     },
+# )
 # plot2d_sky = Orbit(
 #     system,
 #     plane_2d="z",
 #     ax_kwargs={"aspect": "equal"},
 #     orbit_params={"frame": "sky", "unit": u.arcsec, "distance": 10 * u.pc},
 # )
-# plot2d_exovista = Orbit(
-#     system,
-#     plane_2d="z",
-#     axis_keys={"x": "ev_x", "y": "ev_y"},
-#     ax_kwargs={"aspect": "equal"},
-# )
+plot2d_exovista = Orbit(
+    system,
+    plane_2d="z",
+    axis_keys={"x": "ev_x", "y": "ev_y"},
+    ax_kwargs={"aspect": "equal", "lims": {"x": (-10, 10), "y": (-10, 10)}},
+    orbit_params={"frame": "helio-sky", "propagation": "nbody", "unit": u.AU},
+)
 # plot2d_exovista_pix = Orbit(
 #     system,
 #     plane_2d="z",
 #     axis_keys={"x": "ev_x_pix", "y": "ev_y_pix"},
-#     ax_kwargs={"aspect": "equal"},
+#     ax_kwargs={"aspect": "equal", "lims": {"x": (-1000, 1000), "y": (-1000, 1000)}},
 #     orbit_params={"frame": "helio-sky", "propagation": "nbody"},
 # )
 
@@ -156,10 +159,10 @@ main_figure.please_set_animation_values(times, "time")
 # Add plots to the figures
 # main_figure.please_add_plot(plot3d)
 main_figure.please_add_plot(plot2d, col=0)
-main_figure.please_add_plot(plot2d_helio, col=1)
+main_figure.please_add_plot(plot2d_exovista, col=1)
 # main_figure.please_add_plot(plot2d_exovista_pix, col=1)
+# main_figure.please_add_plot(plot2d_helio, col=1)
 # main_figure.please_add_plot(plot2d_sky, col=1)
-# main_figure.please_add_plot(plot2d_exovista, col=1)
 # main_figure.please_add_plot(plot_image1, row=1)
 # main_figure.please_add_plot(plot_image2, row=1, col=1)
 

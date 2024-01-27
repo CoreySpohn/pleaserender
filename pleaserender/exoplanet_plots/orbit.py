@@ -247,6 +247,14 @@ class Orbit(Scatter):
         )
         return planet_dataset
 
+    def get_system_da(self, dataset):
+        planet_dataset = dataset.sel(
+            object="planet",
+            frame=self.orbit_params["frame"],
+            prop=self.orbit_params["propagation"],
+        )
+        return planet_dataset
+
     def draw_planet(self, planet_ind, dataset, animation_value, animation_key):
         planet = self.system.planets[planet_ind]
         planet_dataset = self.get_planet_da(planet_ind, dataset)
@@ -340,3 +348,8 @@ class Orbit(Scatter):
         self.ax.xaxis.set_pane_color(color)
         self.ax.yaxis.set_pane_color(color)
         self.ax.zaxis.set_pane_color(color)
+
+    def create_axes_config(self, data):
+        # Set the axis limits if they are not specified
+        data = self.get_system_da(data)
+        self.handle_axes_limits_and_ticks(data, self.ax_kwargs.get("equal_lims"))
