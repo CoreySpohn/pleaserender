@@ -72,7 +72,7 @@ def get_nice_number(value, round=False):
 
     return nice_fraction * 10**exponent
 
-def calculate_axis_limits_and_ticks(data_min, data_max, num_ticks=3):
+def calculate_axis_limits_and_ticks(data_min, data_max, num_ticks=4):
     range_span = get_nice_number(data_max - data_min, round=True)
     tick_spacing = get_nice_number(range_span / (num_ticks - 1), round=True)
     nice_min = np.floor(data_min / tick_spacing) * tick_spacing
@@ -81,10 +81,10 @@ def calculate_axis_limits_and_ticks(data_min, data_max, num_ticks=3):
 
     return nice_min, nice_max, tick_spacing, offset
 
-def calc_object_viewer_vectors(dataset, current_ind, current_view, viewer_dist, unit=u.AU):
+def calc_object_viewer_vectors(dataset, current_ind, current_view, viewer_dist):
     # Calculate the viewer-origin vector
     r_v = calc_viewer_position(
-        current_view["elev"], current_view["azim"], viewer_dist
+        current_view["elev"], current_view["azim"], viewer_dist.to(u.m)
     )
 
     # Calculate the object-origin vector
@@ -95,8 +95,7 @@ def calc_object_viewer_vectors(dataset, current_ind, current_view, viewer_dist, 
                 dataset["y"][current_ind],
                 dataset["z"][current_ind],
             ]
-        )
-        * unit
+        )*u.m
     )
 
     # Calculate the object-viewer vector
@@ -104,8 +103,9 @@ def calc_object_viewer_vectors(dataset, current_ind, current_view, viewer_dist, 
     return r_v, r_o, r_ov
 
 def calc_object_viewer_angle(r_o, r_ov):
+    val = -np.dot(r_ov, r_o) / (np.linalg.norm(r_ov) * np.linalg.norm(r_o))
     object_viewer_angle = np.arccos(
-        -np.dot(r_ov, r_o) / (np.linalg.norm(r_ov) * np.linalg.norm(r_o))
+        val
     )
     return object_viewer_angle
 

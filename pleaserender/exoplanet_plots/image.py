@@ -36,16 +36,22 @@ class Image(Plot):
 
     def generate_data(self, dataset, animation_values, animation_key):
         times = dataset["time"]
-        # a
         pixels = np.arange(self.coronagraph.npixels)
-        new_coords = {
-            "x (pix)": pixels,
-            "y (pix)": pixels,
-            "coronagraph": self.coronagraph.name,
-        }
         if "coronagraph" in dataset.coords:
-            breakpoint()
-        dataset = dataset.assign_coords(**new_coords)
+            # Add the coronagraph name to the dataset's coordinates
+            # dataset = dataset.assign_coords(
+            #     coronagraph=np.append(
+            #         dataset["coronagraph"].values, self.coronagraph.name
+            #     )
+            # )
+            pass
+        else:
+            new_coords = {
+                "x (pix)": pixels,
+                "y (pix)": pixels,
+                "coronagraph": self.coronagraph.name,
+            }
+            dataset = dataset.assign_coords(**new_coords)
         image_data = np.zeros(
             (len(times), self.coronagraph.npixels, self.coronagraph.npixels)
         )
@@ -58,20 +64,36 @@ class Image(Plot):
             )
             self.observation.create_count_rates()
             self.observation.count_photons()
-            image = self.observation.data
-            image_data[i] = image["total"].data
+            image = self.observation.data["total"].data
+            image_data[i] = image
         image_xr = xr.DataArray(
             image_data,
             coords=[times, pixels, pixels],
             dims=["time", "x (pix)", "y (pix)"],
         )
-        dataset = dataset.assign(image=image_xr)
+        # image_xr = xr.DataArray(
+        #     image_data[np.newaxis, ...],
+        #     coords={
+        #         "coronagraph": [self.coronagraph.name],
+        #         "times": times,
+        #         "x (pix)": pixels,
+        #         "y (pix)": pixels,
+        #     },
+        #     dims=["coronagraph", "time", "x (pix)", "y (pix)"],
+        # )
+
+        # if "image" in dataset.data_vars:
+        #     new_image_data = xr.concat([dataset["image"], image_xr], dim="coronagraph")
+        #     dataset["image"] = new_image_data
+        #     breakpoint()
+        #     # new_coronagraph_coord = np.append(dataset["coronagraph"].values, self.coronagraph.name)
+        #     # dataset.assign({ "image": (("coronagraph", "time", "x (pix)", "y (pix)"), new_image_data), "coronagraph": ("coronagraph", new_coronagraph_coord) })
+        # else:
+        dataset[self.coronagraph.name] = image_xr
         return dataset
 
     def draw_plot(self, dataset, animation_value, animation_key):
-        photon_counts = dataset.image.sel(
-            time=animation_value, coronagraph=self.coronagraph.name
-        )
+        photon_counts = dataset[self.coronagraph.name].sel(time=animation_value)
         self.ax.imshow(photon_counts, origin="lower", cmap="viridis")
 
     def ax_lims_helper(self, data, necessary_axes, equal=False):

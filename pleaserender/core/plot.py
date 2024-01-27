@@ -25,6 +25,9 @@ class Plot:
         self.given_axis_keys = [
             key for key, val in self.axis_keys.items() if val is not None
         ]
+        self.given_axis_names = [
+            val for val in self.axis_keys.values() if val is not None
+        ]
         self.is_3d = len(self.given_axis_keys) == 3
         self.projection = "3d" if self.is_3d else None
 
@@ -100,7 +103,7 @@ class Plot:
             ax_keys = axis_keys
 
         # Allows for 2 and 3 dimensional data with the same call
-        separated_data = [data[self.axis_keys[axis_key]] for axis_key in ax_keys]
+        separated_data = [data[self.axis_keys[axis_key]].values for axis_key in ax_keys]
         if plot_kwargs is None:
             plot_kwargs = self.plot_kwargs
         plot_method(*separated_data, **plot_kwargs)

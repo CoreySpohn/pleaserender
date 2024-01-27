@@ -1,6 +1,7 @@
 import copy
 
 import astropy.units as u
+import exoverses.util.misc as misc
 import numpy as np
 import scipy
 import xarray as xr
@@ -15,6 +16,7 @@ class Orbit(Scatter):
         self,
         system,
         plane_2d=None,
+        orbit_params=None,
         star_params=None,
         planet_params=None,
         disk_params=None,
@@ -39,7 +41,24 @@ class Orbit(Scatter):
                 Parameters specifying how to plot the orbit fits
 
         """
-        self.unit = u.AU
+        # Set the default orbit params
+        # coords can be barycentric or heliocentric
+        # integration can be 'kepler' or 'nbody'
+        # units can be distance, angular, or pixels
+        # if units are angular, then a distance must be specified
+        # if units are pixels, then a pixel scale and a distance must be
+        # specified
+        default_orbit_params = {
+            "frame": "barycentric",
+            "integration": "kepler",
+            "convention": "exovista",
+            "unit": u.AU,
+            "distance": None,
+            "pixel_scale": None,
+        }
+        self.orbit_params = default_orbit_params
+        if orbit_params is not None:
+            self.orbit_params.update(orbit_params)
 
         # Set the default kwargs
         if kwargs.get("axis_keys") is None:
@@ -91,9 +110,14 @@ class Orbit(Scatter):
             "planets_to_plot": np.arange(len(system.planets)),
             "add_trail": True,
             "project": default_project,
+            "planet_plot_kwargs": {"color": "w", "edgecolor": "k"},
         }
         self.planet_params = default_planet_params
         if planet_params is not None:
+            if planet_params.get("planet_plot_kwargs") is not None:
+                self.planet_params["planet_plot_kwargs"].update(
+                    planet_params.get("planet_plot_kwargs")
+                )
             self.planet_params.update(planet_params)
 
         default_disk_params = {"plot": False}
@@ -112,7 +136,7 @@ class Orbit(Scatter):
             self.system.getpattr("a")[self.planet_params["planets_to_plot"]]
         )
         for planet_ind in self.planet_params["planets_to_plot"]:
-            self.add_planet_kwargs(planet_ind)
+            self.add_planet_kwargs(planet_ind, self.planet_params["planet_plot_kwargs"])
 
     def verify_data(self, dataset, animation_values, animation_key):
         """
@@ -125,56 +149,32 @@ class Orbit(Scatter):
             animation_key (str):
                 Key for the animation values in the plot object's dataframe
         """
-
-        return False
+        # Check that we have the x, y, z coordinates for all objects
         if self.planet_params.get("plot"):
-            # Check that we have the planet coordinate
-            if "planet" not in dataset.coords:
-                return False
             for planet_ind in self.planet_params["planets_to_plot"]:
                 # Check for data of all planets that should be plotted
-                animation_data = dataset.sel(planet=planet_ind)[animation_key].values
-
-                # Check if each element in animation_values is in animation_data
-                # all_values_present = np.isin(animation_values, animation_data).all()
-                # if not all_values_present:
-                #     return False
-                for ax_letter in self.axis_keys:
-                    if ax_letter not in dataset.variables:
+                planet_data = self.get_planet_da(planet_ind, dataset)
+                for var in ["x", "y", "z"]:
+                    if var not in planet_data.variables:
                         return False
+                    if np.any(np.isnan(planet_data[var])):
+                        return False
+        dataset = self.convert_units(dataset)
+        return True
 
     def generate_data(self, dataset, animation_values, animation_key):
+        """
+        Adds the x, y, z coordinates for the planets to the dataset
+        """
         times = dataset["time"]
-        if self.planet_params.get("plot"):
-
-            # Add a "planet" coordinate to the dataset
-            dataset = dataset.assign_coords(
-                planet=self.planet_params["planets_to_plot"]
-            )
-            planet_inds = self.planet_params["planets_to_plot"]
-            x_data = np.zeros((len(times), len(planet_inds)))
-            y_data = np.zeros((len(times), len(planet_inds)))
-            z_data = np.zeros((len(times), len(planet_inds)))
-            for i, planet_ind in enumerate(planet_inds):
-                planet = self.system.planets[planet_ind]
-                _x, _y, _z = planet.calc_vectors(Time(times))
-                x_data[:, i], y_data[:, i], z_data[:, i] = (
-                    _x.to(self.unit).value,
-                    _y.to(self.unit).value,
-                    _z.to(self.unit).value,
-                )
-            x_xr = xr.DataArray(
-                x_data, coords=[("time", times.data), ("planet", planet_inds)]
-            )
-            y_xr = xr.DataArray(
-                y_data, coords=[("time", times.data), ("planet", planet_inds)]
-            )
-            z_xr = xr.DataArray(
-                z_data, coords=[("time", times.data), ("planet", planet_inds)]
-            )
-
-            # # Add the data to the dataset
-            dataset = dataset.assign(x=x_xr, y=y_xr, z=z_xr)
+        _da = self.system.propagate(
+            Time(times),
+            method=self.orbit_params["integration"],
+            frame=self.orbit_params["frame"],
+            convention=self.orbit_params["convention"],
+        )
+        dataset = dataset.update(_da)
+        dataset = self.convert_units(dataset)
 
         return dataset
 
@@ -185,15 +185,18 @@ class Orbit(Scatter):
         if self.planet_params.get("plot"):
             # Start by getting all the planet plotting information
             self.planet_distances = (
-                np.zeros(len(self.planet_params["planets_to_plot"])) * self.unit
+                np.zeros(len(self.planet_params["planets_to_plot"])) * u.m
             )
             for i, planet_ind in enumerate(self.planet_params["planets_to_plot"]):
                 planet = self.system.planets[planet_ind]
-                planet_dataset = dataset.sel(planet=planet_ind)
+                planet_ds = self.get_planet_da(planet_ind, dataset)
 
                 # Planet's info for marker size
                 r_v, r_p, r_pv = util.calc_object_viewer_vectors(
-                    planet_dataset, current_ind, current_view, self.max_a, self.unit
+                    planet_ds,
+                    current_ind,
+                    current_view,
+                    self.max_a,
                 )
                 planet_viewer_angle = util.calc_object_viewer_angle(r_p, r_pv)
                 self.planet_marker_size(planet, planet_viewer_angle, factor=0.5)
@@ -213,9 +216,15 @@ class Orbit(Scatter):
             for planet_ind in self.planet_params["planets_to_plot"]:
                 self.draw_planet(planet_ind, dataset, animation_value, animation_key)
 
+    def get_planet_da(self, planet_ind, dataset):
+        planet_dataset = dataset.sel(
+            object="planet", index=planet_ind, frame=self.orbit_params["frame"]
+        )
+        return planet_dataset
+
     def draw_planet(self, planet_ind, dataset, animation_value, animation_key):
         planet = self.system.planets[planet_ind]
-        planet_dataset = dataset.sel(planet=planet_ind)
+        planet_dataset = self.get_planet_da(planet_ind, dataset)
 
         # Plot the planet
         self.generic_plot(
@@ -249,16 +258,30 @@ class Orbit(Scatter):
                         planet_dataset, animation_value, animation_key, ax_letter
                     )
 
-    def add_planet_kwargs(self, planet_ind, **kwargs):
+    def convert_units(self, ds):
+        ds = misc.add_units(
+            ds,
+            self.orbit_params["unit"],
+            distance=self.orbit_params.get("distance"),
+            pixel_scale=self.orbit_params.get("pixel_scale"),
+        )
+
+        # Update the axis keys
+        for key, val in self.axis_keys.items():
+            if val in ["x", "y", "z"] and val is not None:
+                new_name = f"{val}({self.orbit_params['unit']})"
+                self.axis_keys[key] = new_name
+                # Update the axis label
+                if self.ax_kwargs[f"{key}label"] == val:
+                    self.ax_kwargs[f"{key}label"] = new_name
+
+        return ds
+
+    def add_planet_kwargs(self, planet_ind, planet_plot_kwargs):
         planet = self.system.planets[planet_ind]
-        default_kwargs = {
-            "s": 25,
-            "color": "w",
-            "edgecolor": "k",
-        }
-        if not hasattr(planet, "plot_kwargs"):
-            planet.plot_kwargs = default_kwargs
-        planet.plot_kwargs.update(kwargs)
+        if hasattr(planet, "plot_kwargs"):
+            planet_plot_kwargs.update(planet.plot_kwargs)
+        planet.plot_kwargs = planet_plot_kwargs
         planet.base_size = self.planet_base_size(planet)
 
     def planet_marker_size(self, planet, planet_viewer_angle, factor=0.5):
