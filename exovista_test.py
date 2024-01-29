@@ -20,7 +20,7 @@ from pleaserender.exoplanet_plots import Image, Orbit
 plt.style.use("dark_background")
 
 # Create some simple data for the plots
-times = Time(np.linspace(2000, 2005, 100), format="decimalyear")
+times = Time(np.linspace(2000, 2005, 10), format="decimalyear")
 
 # Input files
 coronagraph1_dir = Path("input/coronagraphs/LUVOIR-B-VC6_timeseries/")
@@ -91,11 +91,14 @@ obs_scen = {
     "include_disk": False,
     "bandpass": bandpass,
     "spectral_resolution": 100,
-    "return_spectrum": False,
+    "return_spectrum": True,
     "return_frames": False,
+    "return_sources": True,
     "separate_sources": False,
-    "wavelength_resolved_flux": False,
-    "wavelength_resolved_transmission": False,
+    "wavelength_resolved_flux": True,
+    "wavelength_resolved_transmission": True,
+    "detector_pixel_scale": 0.001 * u.arcsec / u.pix,
+    "detector_shape": (300, 300),
 }
 observing_scenario = observing_scenario.ObservingScenario(obs_scen)
 
@@ -107,16 +110,23 @@ observing_scenario = observing_scenario.ObservingScenario(obs_scen)
 
 # planet_params = {"planets_to_plot": [0], "planet_plot_kwargs": {"color": "blue"}}
 planet_params = {}
-plot2d = Orbit(
+plot3d = Orbit(
     system,
-    plane_2d="z",
-    ax_kwargs={"aspect": "equal", "lims": {"x": (-10, 10), "y": (-10, 10)}},
+    # plane_2d="z",
+    # ax_kwargs={"aspect": "equal", "lims": {"x": (-10, 10), "y": (-10, 10)}},
     orbit_params={
         "frame": "helio-sky",
         "propagation": "nbody",
         "unit": u.AU,
-        "distance": system.star.dist,
-        "pixel_scale": 0.002 * 1000 * u.mas / u.pixel,
+    },
+)
+plot2d = Orbit(
+    system,
+    plane_2d="z",
+    orbit_params={
+        "frame": "helio-sky",
+        "propagation": "nbody",
+        "unit": u.AU,
     },
 )
 # plot2d_helio = Orbit(
@@ -159,9 +169,9 @@ main_figure.please_add_dataset(dataset)
 main_figure.please_set_animation_values(times, "time")
 
 # Add plots to the figures
-# main_figure.please_add_plot(plot3d)
-main_figure.please_add_plot(plot2d, col=0)
-main_figure.please_add_plot(plot2d_exovista, col=1)
+main_figure.please_add_plot(plot3d)
+main_figure.please_add_plot(plot2d, col=1)
+# main_figure.please_add_plot(plot2d_exovista, col=1)
 # main_figure.please_add_plot(plot2d_exovista_pix, col=1)
 # main_figure.please_add_plot(plot2d_helio, col=1)
 # main_figure.please_add_plot(plot2d_sky, col=1)

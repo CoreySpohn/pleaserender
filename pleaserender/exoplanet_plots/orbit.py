@@ -172,14 +172,14 @@ class Orbit(Scatter):
             _da = self.system.propagate(
                 Time(times),
                 ds=dataset,
-                prop_method=self.orbit_params["propagation"],
+                prop=self.orbit_params["propagation"],
                 frame=self.orbit_params["frame"],
                 convention=self.orbit_params["convention"],
             )
         else:
             _da = self.system.convert_to_frame(
                 dataset,
-                prop_method=self.orbit_params["propagation"],
+                prop=self.orbit_params["propagation"],
                 frame=self.orbit_params["frame"],
                 convention=self.orbit_params["convention"],
             )
