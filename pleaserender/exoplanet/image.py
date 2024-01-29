@@ -4,13 +4,10 @@ import astropy.units as u
 import numpy as np
 import xarray as xr
 from astropy.time import Time
-from coronagraphoto.observation import Observation
-from coronagraphoto.observing_scenario import ObservingScenario
+from coronagraphoto import Observation, ObservingScenario
 from tqdm import tqdm
 
 from pleaserender.core import Plot
-
-# from pleaserender.exoplanet_plots import Orbit
 
 
 class Image(Plot):
