@@ -15,7 +15,7 @@ from synphot.models import (BlackBodyNorm1D, Box1D, Empirical1D, Gaussian1D,
 from tqdm import main
 
 from pleaserender.core import Figure, Plot, Scatter
-from pleaserender.exoplanet_plots import Image, Orbit
+from pleaserender.exoplanet import Image, Orbit
 
 plt.style.use("dark_background")
 
@@ -44,22 +44,24 @@ bandpass = SpectralElement(
 
 obs_scen = {
     "diameter": 8 * u.m,
-    "wavelength": wavelength,
+    "central_wavelength": wavelength,
     "time": times[0],
     "exposure_time": 48 * u.hr,
     "frame_time": 1 * u.hr,
     "include_star": False,
     "include_planets": True,
     "include_disk": False,
-    "bandpass": bandpass,
+    # "bandpass": bandpass,
+    "bandpass_model": Gaussian1D,
+    "frac_bandwidth": frac_bandwidth,
     "spectral_resolution": 100,
-    "return_spectrum": True,
+    "return_spectrum": False,
     "return_frames": False,
     "return_sources": True,
     "separate_sources": False,
-    "wavelength_resolved_flux": True,
-    "wavelength_resolved_transmission": True,
-    "detector_pixel_scale": 0.001 * u.arcsec / u.pix,
+    "wavelength_resolved_flux": False,
+    "wavelength_resolved_transmission": False,
+    "detector_pixel_scale": 0.01 * u.arcsec / u.pix,
     "detector_shape": (300, 300),
 }
 observing_scenario = observing_scenario.ObservingScenario(obs_scen)
@@ -68,13 +70,19 @@ obs.create_count_rates()
 obs.count_photons()
 
 
-plot_image1 = Image(system, coro1, observing_scenario, ax_kwargs={"title": "Vector"})
+plot_image1 = Image(
+    system,
+    coro1,
+    observing_scenario,
+    ax_kwargs={"title": "Vector"},
+    imaging_params={"plane": "det"},
+)
 
-breakpoint()
 # Create a figure and add the plots
+wavelengths = np.linspace(400, 1000, 30) * u.nm
 figure_kwargs = {"figsize": (15, 15), "layout": None}
 main_figure = Figure(fig_kwargs=figure_kwargs)
-main_figure.please_set_animation_values(times, "time")
+main_figure.please_set_animation_values(wavelengths, "central_wavelength")
 
 # Add plots to the figures
 # main_figure.please_add_plot(plot3d)
@@ -83,13 +91,13 @@ main_figure.please_set_animation_values(times, "time")
 # main_figure.please_add_plot(plot2d_exovista_pix, col=1)
 # main_figure.please_add_plot(plot2d_helio, col=1)
 # main_figure.please_add_plot(plot2d_sky, col=1)
-main_figure.please_add_plot(plot_image1, row=1)
+main_figure.please_add_plot(plot_image1)
 # main_figure.please_add_plot(plot_image2, row=1, col=1)
 
 # Set the animation values and then render
 render_settings = {"animation_duration": 5}
 # main_figure.please_preview([-1])
 main_figure.please_render_video(
-    Path("renders/exovista.mp4"), render_settings=render_settings
+    Path("renders/spectra.mp4"), render_settings=render_settings
 )
 # main_figure.please_render_images(Path("renders/exovista"))

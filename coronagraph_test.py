@@ -14,12 +14,12 @@ from synphot.models import (BlackBodyNorm1D, Box1D, Empirical1D, Gaussian1D,
                             GaussianFlux1D)
 
 from pleaserender.core import Figure, Plot, Scatter
-from pleaserender.exoplanet_plots import Image, Orbit
+from pleaserender.exoplanet import Image, Orbit
 
 plt.style.use("dark_background")
 
 # Create some simple data for the plots
-times = Time(np.linspace(2000, 2005, 10), format="decimalyear")
+times = Time(np.linspace(2000, 2005, 100), format="decimalyear")
 
 # Input files
 coronagraph1_dir = Path("input/coronagraphs/LUVOIR-B-VC6_timeseries/")
@@ -82,13 +82,13 @@ obs_scen = {
 }
 observing_scenario = observing_scenario.ObservingScenario(obs_scen)
 
-
+1
 # Define plots
 planet_params_3d = {"project": {"point": ["x", "y", "z"], "trail": ["x", "y", "z"]}}
 plot3d = Orbit(system, planet_params=planet_params_3d)
 plot2d = Orbit(system, plane_2d="z", ax_kwargs={"aspect": "equal"})
-plot_image1 = Image(system, coro1, observing_scenario, ax_kwargs={"title": "Vector"})
-plot_image2 = Image(system, coro2, observing_scenario, ax_kwargs={"title": "APLC"})
+# plot_image1 = Image(system, coro1, observing_scenario, ax_kwargs={"title": "Vector"})
+# plot_image2 = Image(system, coro2, observing_scenario, ax_kwargs={"title": "APLC"})
 # plot2d_exovista = Orbit(
 #     system,
 #     plane_2d="z",

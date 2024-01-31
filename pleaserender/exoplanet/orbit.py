@@ -49,7 +49,7 @@ class Orbit(Scatter):
         # if units are pixels, then a pixel scale and a distance must be
         # specified
         default_orbit_params = {
-            "frame": "bary",
+            "ref_frame": "bary",
             "propagation": "kepler",
             "convention": "exovista",
             "unit": u.AU,
@@ -162,43 +162,43 @@ class Orbit(Scatter):
         dataset = self.convert_units(dataset)
         return True
 
-    def generate_data(self, dataset, animation_values, animation_key):
-        """
-        Adds the x, y, z coordinates for the planets to the dataset
-        """
-        times = dataset["time"]
-        # Check for data of all planets that should be plotted
-        if np.all(np.isnan(dataset["x"].sel(prop=self.orbit_params["propagation"]))):
-            _da = self.system.propagate(
-                Time(times),
-                ds=dataset,
-                prop=self.orbit_params["propagation"],
-                frame=self.orbit_params["frame"],
-                convention=self.orbit_params["convention"],
-            )
-        else:
-            _da = self.system.convert_to_frame(
-                dataset,
-                prop=self.orbit_params["propagation"],
-                frame=self.orbit_params["frame"],
-                convention=self.orbit_params["convention"],
-            )
-        # Update values only where they are NaN in dataset
-        merged_ds = xr.merge([dataset, _da])
-        for var in dataset.data_vars:
-            # Check if the variable is present in both datasets
-            if var in _da.data_vars:
-                # Use np.where to update only NaN values
-                merged_ds[var].values = np.where(
-                    np.isnan(dataset[var].values),
-                    _da[var].values,
-                    dataset[var].values,
-                )
-        dataset = merged_ds
-        # dataset = dataset.update(_da)
-        dataset = self.convert_units(dataset)
+    # def generate_data(self, dataset, animation_values, animation_key):
+    #     """
+    #     Adds the x, y, z coordinates for the planets to the dataset
+    #     """
+    #     times = dataset["time"]
+    #     # Check for data of all planets that should be plotted
+    #     if np.all(np.isnan(dataset["x"].sel(prop=self.orbit_params["propagation"]))):
+    #         _da = self.system.propagate(
+    #             Time(times),
+    #             ds=dataset,
+    #             prop=self.orbit_params["propagation"],
+    #             frame=self.orbit_params["frame"],
+    #             convention=self.orbit_params["convention"],
+    #         )
+    #     else:
+    #         _da = self.system.convert_to_frame(
+    #             dataset,
+    #             prop=self.orbit_params["propagation"],
+    #             frame=self.orbit_params["frame"],
+    #             convention=self.orbit_params["convention"],
+    #         )
+    #     # Update values only where they are NaN in dataset
+    #     merged_ds = xr.merge([dataset, _da])
+    #     for var in dataset.data_vars:
+    #         # Check if the variable is present in both datasets
+    #         if var in _da.data_vars:
+    #             # Use np.where to update only NaN values
+    #             merged_ds[var].values = np.where(
+    #                 np.isnan(dataset[var].values),
+    #                 _da[var].values,
+    #                 dataset[var].values,
+    #             )
+    #     dataset = merged_ds
+    #     # dataset = dataset.update(_da)
+    #     dataset = self.convert_units(dataset)
 
-        return dataset
+    #     return dataset
 
     def draw_plot(self, dataset, animation_value, animation_key):
         n_vals = dataset[animation_key].size
@@ -239,18 +239,20 @@ class Orbit(Scatter):
                 self.draw_planet(planet_ind, dataset, animation_value, animation_key)
 
     def get_planet_da(self, planet_ind, dataset):
+        # dist_attrs = self.get_dist_attrs(self.system, lists=False)
         planet_dataset = dataset.sel(
             object="planet",
             index=planet_ind,
-            frame=self.orbit_params["frame"],
+            ref_frame=self.orbit_params["ref_frame"],
             prop=self.orbit_params["propagation"],
+            # **dist_attrs,
         )
         return planet_dataset
 
     def get_system_da(self, dataset):
         planet_dataset = dataset.sel(
             object="planet",
-            frame=self.orbit_params["frame"],
+            ref_frame=self.orbit_params["ref_frame"],
             prop=self.orbit_params["propagation"],
         )
         return planet_dataset
@@ -353,3 +355,136 @@ class Orbit(Scatter):
         # Set the axis limits if they are not specified
         data = self.get_system_da(data)
         self.handle_axes_limits_and_ticks(data, self.ax_kwargs.get("equal_lims"))
+
+    def compile_necessary_info(self, animation_values, animation_key, plot_calls):
+        data_args = (
+            self,
+            self.system,
+            self.orbit_params["propagation"],
+            self.orbit_params["ref_frame"],
+            self.orbit_params["convention"],
+        )
+        if animation_key == "time":
+            times = Time(animation_values)
+        else:
+            raise NotImplementedError(
+                "WHAT ARE YOU ANIMATING AN ORBIT IN OTHER THAN TIME? Sorry, it's late."
+            )
+        if Orbit in plot_calls:
+            plot_calls[Orbit]["args"][1].append(data_args)
+        else:
+            plot_calls[Orbit] = {"args": [times, [data_args]], "kwargs": {}}
+        return plot_calls
+
+    def get_dist_attrs(self, system, lists=True):
+        if lists:
+            dist_attrs = {"name": [system.star.name], "origin": [system.origin]}
+        else:
+            dist_attrs = {"name": system.star.name, "origin": system.origin}
+        return dist_attrs
+
+    def generate_data(self, times, all_orbit_args):
+        # Create the base dataset
+        all_dist_attrs = {"name": [], "origin": []}
+        for (plot, system, prop, ref_frame, convention) in all_orbit_args:
+            _dist_attrs = plot.get_dist_attrs(system, lists=False)
+            for key, val in _dist_attrs.items():
+                all_dist_attrs[key].append(val)
+
+        obs_ds = system.create_dataset(times)
+        # obs_ds = obs_ds.expand_dims(all_dist_attrs)
+        for orbit_args in all_orbit_args:
+            orbit_plot, system, prop, ref_frame, convention = orbit_args
+            dist_attrs = orbit_plot.get_dist_attrs(system)
+            # if obs_ds is None:
+            #     obs_ds = system.propagate(
+            #         times,
+            #         prop=prop,
+            #         ref_frame=ref_frame,
+            #         convention=convention,
+            #     )
+            #     breakpoint()
+
+            # else:
+            if np.all(np.isnan(obs_ds["x"].sel(prop=prop))):
+                _obs_ds = system.propagate(
+                    times,
+                    # ds=obs_ds,
+                    prop=prop,
+                    ref_frame=ref_frame,
+                    convention=convention,
+                )
+            else:
+                _obs_ds = system.convert_to_frame(
+                    obs_ds,
+                    prop=prop,
+                    ref_frame=ref_frame,
+                    convention=convention,
+                )
+            _obs_ds = orbit_plot.convert_units(_obs_ds)
+            # _obs_ds = _obs_ds.expand_dims(dist_attrs)
+            merged_ds = xr.merge([obs_ds, _obs_ds])
+            # Update values only where they are NaN in dataset
+            for var in obs_ds.data_vars:
+                # Check if the variable is present in both datasets
+                if var in _obs_ds.data_vars:
+                    # Use np.where to update only NaN values
+                    merged_ds[var].values = np.where(
+                        np.isnan(obs_ds[var].values),
+                        _obs_ds[var].values,
+                        obs_ds[var].values,
+                    )
+            obs_ds = merged_ds
+            # obs_ds = orbit_plot.convert_units(obs_ds)
+        return obs_ds
+
+    # def generate_dataset(self, dataset, times, orbit_args):
+    #     """
+    #     Adds the x, y, z coordinates for the planets to the dataset
+    #     """
+    #     # times = dataset["time"]
+    #     # Check for data of all planets that should be plotted
+    #     orbit_plot, system, prop, ref_frame, convention = orbit_args
+
+    #     if dataset is None:
+    #         _da = system.propagate(
+    #             times,
+    #             prop=prop,
+    #             ref_frame=ref_frame,
+    #             convention=convention,
+    #         )
+    #     else:
+    #         if np.all(
+    #             np.isnan(dataset["x"].sel(prop=self.orbit_params["propagation"]))
+    #         ):
+    #             _da = system.propagate(
+    #                 times,
+    #                 ds=dataset,
+    #                 prop=prop,
+    #                 ref_frame=ref_frame,
+    #                 convention=convention,
+    #             )
+    #         else:
+    #             _da = self.system.convert_to_frame(
+    #                 dataset,
+    #                 prop=prop,
+    #                 ref_frame=ref_frame,
+    #                 convention=convention,
+    #             )
+    #     # # Update values only where they are NaN in dataset
+    #     # merged_ds = xr.merge([dataset, _da])
+    #     # for var in dataset.data_vars:
+    #     #     # Check if the variable is present in both datasets
+    #     #     if var in _da.data_vars:
+    #     #         # Use np.where to update only NaN values
+    #     #         merged_ds[var].values = np.where(
+    #     #             np.isnan(dataset[var].values),
+    #     #             _da[var].values,
+    #     #             dataset[var].values,
+    #     #         )
+    #     # dataset = merged_ds
+    #     # dataset = dataset.update(_da)
+    #     breakpoint()
+    #     dataset = orbit_plot.convert_units(dataset)
+
+    #     return dataset

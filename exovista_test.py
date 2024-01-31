@@ -15,12 +15,12 @@ from synphot.models import (BlackBodyNorm1D, Box1D, Empirical1D, Gaussian1D,
 from tqdm import main
 
 from pleaserender.core import Figure, Plot, Scatter
-from pleaserender.exoplanet_plots import Image, Orbit
+from pleaserender.exoplanet import Image, Orbit
 
 plt.style.use("dark_background")
 
 # Create some simple data for the plots
-times = Time(np.linspace(2000, 2005, 10), format="decimalyear")
+times = Time(np.linspace(2000, 2005, 50), format="decimalyear")
 
 # Input files
 coronagraph1_dir = Path("input/coronagraphs/LUVOIR-B-VC6_timeseries/")
@@ -35,41 +35,41 @@ coro2 = coronagraph.Coronagraph(coronagraph2_dir)
 system = ExovistaSystem(scene)
 
 # GETTING EXOVISTA POSITION DATA
-dataset = system.create_dataset(times)
-planet_inds = np.arange(len(system.planets))
-times64 = times.datetime64
-x_data = np.zeros((len(times), len(planet_inds)))
-y_data = np.zeros((len(times), len(planet_inds)))
-z_data = np.zeros((len(times), len(planet_inds)))
-x_pix_data = np.zeros((len(times), len(planet_inds)))
-y_pix_data = np.zeros((len(times), len(planet_inds)))
-# dataset = xr.Dataset(coords={"time": times64, "index": planet_inds, "body": "planet"})
-for i, planet_ind in enumerate(planet_inds):
-    planet = system.planets[planet_ind]
-    _x = np.interp(times.decimalyear, planet._t.decimalyear, planet._x.to(u.AU).value)
-    _y = np.interp(times.decimalyear, planet._t.decimalyear, planet._y.to(u.AU).value)
-    _z = np.interp(times.decimalyear, planet._t.decimalyear, planet._z.to(u.AU).value)
-    _x_pix = np.interp(times.decimalyear, planet._t.decimalyear, planet._x_pix.value)
-    _y_pix = np.interp(times.decimalyear, planet._t.decimalyear, planet._y_pix.value)
-    # _x, _y, _z = planet._x, planet._y, planet._z
-    x_data[:, i], y_data[:, i], z_data[:, i] = (_x, _y, _z)
-    x_pix_data[:, i], y_pix_data[:, i] = _x_pix, _y_pix
-coords = [
-    ("time", times64),
-    ("index", planet_inds),
-    ("object", ["planet"]),
-    ("frame", ["helio-sky"]),
-]
-x_xr = xr.DataArray(x_data[..., np.newaxis, np.newaxis], coords=coords)
-y_xr = xr.DataArray(y_data[..., np.newaxis, np.newaxis], coords=coords)
-z_xr = xr.DataArray(z_data[..., np.newaxis, np.newaxis], coords=coords)
-x_pix_xr = xr.DataArray(x_pix_data[..., np.newaxis, np.newaxis], coords=coords)
-y_pix_xr = xr.DataArray(y_pix_data[..., np.newaxis, np.newaxis], coords=coords)
-# # Add the exovista data to the dataset
-dataset = dataset.assign(
-    ev_x=x_xr, ev_y=y_xr, ev_z=z_xr, ev_x_pix=x_pix_xr, ev_y_pix=y_pix_xr
-)
-dataset["ev_x_pix"].sel(object="planet", index=0, frame="helio-sky")
+# dataset = system.create_dataset(times)
+# planet_inds = np.arange(len(system.planets))
+# times64 = times.datetime64
+# x_data = np.zeros((len(times), len(planet_inds)))
+# y_data = np.zeros((len(times), len(planet_inds)))
+# z_data = np.zeros((len(times), len(planet_inds)))
+# x_pix_data = np.zeros((len(times), len(planet_inds)))
+# y_pix_data = np.zeros((len(times), len(planet_inds)))
+# # dataset = xr.Dataset(coords={"time": times64, "index": planet_inds, "body": "planet"})
+# for i, planet_ind in enumerate(planet_inds):
+#     planet = system.planets[planet_ind]
+#     _x = np.interp(times.decimalyear, planet._t.decimalyear, planet._x.to(u.AU).value)
+#     _y = np.interp(times.decimalyear, planet._t.decimalyear, planet._y.to(u.AU).value)
+#     _z = np.interp(times.decimalyear, planet._t.decimalyear, planet._z.to(u.AU).value)
+#     _x_pix = np.interp(times.decimalyear, planet._t.decimalyear, planet._x_pix.value)
+#     _y_pix = np.interp(times.decimalyear, planet._t.decimalyear, planet._y_pix.value)
+#     # _x, _y, _z = planet._x, planet._y, planet._z
+#     x_data[:, i], y_data[:, i], z_data[:, i] = (_x, _y, _z)
+#     x_pix_data[:, i], y_pix_data[:, i] = _x_pix, _y_pix
+# coords = [
+#     ("time", times64),
+#     ("index", planet_inds),
+#     ("object", ["planet"]),
+#     ("frame", ["helio-sky"]),
+# ]
+# x_xr = xr.DataArray(x_data[..., np.newaxis, np.newaxis], coords=coords)
+# y_xr = xr.DataArray(y_data[..., np.newaxis, np.newaxis], coords=coords)
+# z_xr = xr.DataArray(z_data[..., np.newaxis, np.newaxis], coords=coords)
+# x_pix_xr = xr.DataArray(x_pix_data[..., np.newaxis, np.newaxis], coords=coords)
+# y_pix_xr = xr.DataArray(y_pix_data[..., np.newaxis, np.newaxis], coords=coords)
+# # # Add the exovista data to the dataset
+# dataset = dataset.assign(
+#     ev_x=x_xr, ev_y=y_xr, ev_z=z_xr, ev_x_pix=x_pix_xr, ev_y_pix=y_pix_xr
+# )
+# dataset["ev_x_pix"].sel(object="planet", index=0, frame="helio-sky")
 
 
 wavelength = 500 * u.nm
@@ -82,7 +82,7 @@ bandpass = SpectralElement(
 
 obs_scen = {
     "diameter": 8 * u.m,
-    "wavelength": wavelength,
+    "central_wavelength": wavelength,
     "time": times[0],
     "exposure_time": 48 * u.hr,
     "frame_time": 1 * u.hr,
@@ -91,12 +91,12 @@ obs_scen = {
     "include_disk": False,
     "bandpass": bandpass,
     "spectral_resolution": 100,
-    "return_spectrum": True,
+    "return_spectrum": False,
     "return_frames": False,
     "return_sources": True,
     "separate_sources": False,
-    "wavelength_resolved_flux": True,
-    "wavelength_resolved_transmission": True,
+    "wavelength_resolved_flux": False,
+    "wavelength_resolved_transmission": False,
     "detector_pixel_scale": 0.001 * u.arcsec / u.pix,
     "detector_shape": (300, 300),
 }
@@ -115,7 +115,7 @@ plot3d = Orbit(
     # plane_2d="z",
     # ax_kwargs={"aspect": "equal", "lims": {"x": (-10, 10), "y": (-10, 10)}},
     orbit_params={
-        "frame": "helio-sky",
+        "ref_frame": "helio-sky",
         "propagation": "nbody",
         "unit": u.AU,
     },
@@ -124,7 +124,7 @@ plot2d = Orbit(
     system,
     plane_2d="z",
     orbit_params={
-        "frame": "helio-sky",
+        "ref_frame": "helio-sky",
         "propagation": "nbody",
         "unit": u.AU,
     },
@@ -145,13 +145,13 @@ plot2d = Orbit(
 #     ax_kwargs={"aspect": "equal"},
 #     orbit_params={"frame": "sky", "unit": u.arcsec, "distance": 10 * u.pc},
 # )
-plot2d_exovista = Orbit(
-    system,
-    plane_2d="z",
-    axis_keys={"x": "ev_x", "y": "ev_y"},
-    ax_kwargs={"aspect": "equal", "lims": {"x": (-10, 10), "y": (-10, 10)}},
-    orbit_params={"frame": "helio-sky", "propagation": "nbody", "unit": u.AU},
-)
+# plot2d_exovista = Orbit(
+#     system,
+#     plane_2d="z",
+#     axis_keys={"x": "ev_x", "y": "ev_y"},
+#     ax_kwargs={"aspect": "equal", "lims": {"x": (-10, 10), "y": (-10, 10)}},
+#     orbit_params={"frame": "helio-sky", "propagation": "nbody", "unit": u.AU},
+# )
 plot_image1 = Image(system, coro1, observing_scenario, ax_kwargs={"title": "Vector"})
 plot_image2 = Image(system, coro2, observing_scenario, ax_kwargs={"title": "APLC"})
 # plot2d_exovista_pix = Orbit(
@@ -165,7 +165,7 @@ plot_image2 = Image(system, coro2, observing_scenario, ax_kwargs={"title": "APLC
 # Create a figure and add the plots
 figure_kwargs = {"figsize": (15, 15), "layout": None}
 main_figure = Figure(fig_kwargs=figure_kwargs, ncols=2, nrows=2)
-main_figure.please_add_dataset(dataset)
+# main_figure.please_add_dataset(dataset)
 main_figure.please_set_animation_values(times, "time")
 
 # Add plots to the figures
@@ -176,7 +176,7 @@ main_figure.please_add_plot(plot2d, col=1)
 # main_figure.please_add_plot(plot2d_helio, col=1)
 # main_figure.please_add_plot(plot2d_sky, col=1)
 main_figure.please_add_plot(plot_image1, row=1)
-main_figure.please_add_plot(plot_image2, row=1, col=1)
+main_figure.please_add_plot(plot_image2, col=1, row=1)
 
 # Set the animation values and then render
 render_settings = {"animation_duration": 5}

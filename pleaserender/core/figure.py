@@ -36,6 +36,9 @@ class Figure:
 
         self.dataset = None
 
+        self.plot_calls = {}
+        self.plots_by_type = {}
+
         self.shared_axes = {}
 
     def please_add_plot(
@@ -48,6 +51,12 @@ class Figure:
         sharex_plot=None,
         sharey_plot=None,
     ):
+        plot_type = plot.__class__.__name__
+        if plot_type not in self.plots_by_type:
+            self.plots_by_type[plot_type] = []
+        self.plots_by_type[plot_type].append(self)
+
+        self.plots
         plot.grid_position = (row, col, rowspan, colspan)
         self.shared_axes[plot] = {
             "x": True if sharex_plot is not None else False,
@@ -141,6 +150,10 @@ class Figure:
         if self.dataset is None:
             self.please_add_dataset()
 
+        self.plot_calls = self.compile_necessary_info(
+            self.animation_values, self.animation_key, self.plot_calls
+        )
+
         # Check that all the data has been generated
         self.verify_figure_data(self.animation_values, self.animation_key)
 
@@ -182,18 +195,40 @@ class Figure:
         for plot in self.plots:
             plot.ax.clear()
 
-    def verify_figure_data(self, animation_values, animation_key):
+    def compile_necessary_info(self, animation_values, animation_key, plot_calls):
+        # Compile necessary info for each kind of plot, which is then
+        # passed once to the plot's generate_data method
+        # For example, the Image plot needs a list of Observations, which looks
+        # like:
+        # plot_calls{Image: {"observations": [obs1, obs2, obs3]}}
         for subfigure in self.subfigures:
-            # Recursive call for subfigures
-            subfigure.verify_figure_data(animation_values, animation_key)
-        for plot in self.plots:
-            necessary_data_exists = plot.verify_data(
-                self.dataset, animation_values, animation_key
+            plot_calls = subfigure.compile_necessary_info(
+                animation_values, animation_key, plot_calls
             )
-            if not necessary_data_exists:
-                self.dataset = plot.generate_data(
-                    self.dataset, animation_values, animation_key
-                )
+        for plot in self.plots:
+            plot_calls = plot.compile_necessary_info(
+                animation_values, animation_key, plot_calls
+            )
+        return plot_calls
+
+    def verify_figure_data(self, animation_values, animation_key):
+        for plot_type, plot_call in self.plot_calls.items():
+            _ds = plot_type.generate_data(
+                plot_type, *plot_call["args"], **plot_call["kwargs"]
+            )
+            self.dataset = xr.merge([self.dataset, _ds])
+            self.dataset.attrs.update(_ds.attrs)
+        # for subfigure in self.subfigures:
+        #     # Recursive call for subfigures
+        #     subfigure.verify_figure_data(animation_values, animation_key)
+        # for plot in self.plots:
+        #     necessary_data_exists = plot.verify_data(
+        #         self.dataset, animation_values, animation_key
+        #     )
+        #     if not necessary_data_exists:
+        #         self.dataset = plot.generate_data(
+        #             self.dataset, animation_values, animation_key
+        #         )
 
     def create_figure(self, parent_fig=None, parent_spec=None, animation_key=None):
         if parent_fig is None:

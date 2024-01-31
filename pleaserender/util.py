@@ -121,3 +121,12 @@ def calc_object_viewer_orth_dist(r_v, r_o):
     scalar_proj = np.dot(r_o, r_v_hat)
     o_v_orth_dist = np.linalg.norm(r_v) - scalar_proj
     return o_v_orth_dist
+
+def create_title(title_dict, animation_key):
+    title = ''
+    for key, val in title_dict.items():
+        if key == animation_key:
+            continue
+        else:
+            title += f"{key}={val}, "
+    return title[:-2]
