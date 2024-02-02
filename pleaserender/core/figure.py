@@ -34,7 +34,7 @@ class Figure:
         # List to store subfigures
         self.subfigures = []
 
-        self.dataset = None
+        # self.dataset = None
 
         self.plot_calls = {}
         self.plots_by_type = {}
@@ -50,13 +50,13 @@ class Figure:
         colspan=1,
         sharex_plot=None,
         sharey_plot=None,
+        dataset=None,
     ):
         plot_type = plot.__class__.__name__
         if plot_type not in self.plots_by_type:
             self.plots_by_type[plot_type] = []
         self.plots_by_type[plot_type].append(self)
 
-        self.plots
         plot.grid_position = (row, col, rowspan, colspan)
         self.shared_axes[plot] = {
             "x": True if sharex_plot is not None else False,
@@ -64,6 +64,9 @@ class Figure:
             "sharex_plot": sharex_plot,
             "sharey_plot": sharey_plot,
         }
+        plot.data_provided = dataset is not None
+        if plot.data_provided:
+            plot.data = dataset
         self.plots.append(plot)
 
     def please_add_subfigure(self, subfigure, row, col, rowspan=1, colspan=1):
@@ -76,16 +79,6 @@ class Figure:
         self.animation_values = animation_values
         self.animation_key = animation_key
         self.is_animated = len(animation_values) > 1
-
-    def please_add_dataset(self, dataset=None):
-        if dataset is None:
-            self.dataset = xr.Dataset(
-                coords={self.animation_key: self.animation_values}
-            )
-        else:
-            self.dataset = dataset
-        for subfigure in self.subfigures:
-            subfigure.please_add_dataset(dataset)
 
     def please_preview(self, frame):
         # Create figure (and all subfigures)
@@ -147,15 +140,8 @@ class Figure:
         self.pbar.close()
 
     def render_setup(self):
-        if self.dataset is None:
-            self.please_add_dataset()
-
-        self.plot_calls = self.compile_necessary_info(
-            self.animation_values, self.animation_key, self.plot_calls
-        )
-
         # Check that all the data has been generated
-        self.verify_figure_data(self.animation_values, self.animation_key)
+        self.generate_data(self.animation_values, self.animation_key)
 
         # Create figure (and all subfigures)
         self.fig = self.create_figure()
@@ -180,9 +166,15 @@ class Figure:
 
         # Render plots
         for plot in self.plots:
-            plot.draw_plot(self.dataset, animation_value, self.animation_key)
-            plot.adjust_settings(self.dataset, animation_value, self.animation_key)
+            plot.draw_plot(animation_value, self.animation_key)
+            plot.adjust_settings(animation_value, self.animation_key)
 
+        if "title" not in self.fig_kwargs:
+            if isinstance(animation_value, np.datetime64):
+                title = f"{Time(animation_value).decimalyear:.2f}"
+            else:
+                raise NotImplementedError("Type not implemented yet")
+        self.fig.suptitle(title)
         self.pbar.update(1)
 
     def clear(self):
@@ -195,40 +187,11 @@ class Figure:
         for plot in self.plots:
             plot.ax.clear()
 
-    def compile_necessary_info(self, animation_values, animation_key, plot_calls):
-        # Compile necessary info for each kind of plot, which is then
-        # passed once to the plot's generate_data method
-        # For example, the Image plot needs a list of Observations, which looks
-        # like:
-        # plot_calls{Image: {"observations": [obs1, obs2, obs3]}}
+    def generate_data(self, animation_values, animation_key):
         for subfigure in self.subfigures:
-            plot_calls = subfigure.compile_necessary_info(
-                animation_values, animation_key, plot_calls
-            )
+            subfigure.generate_data(animation_values, animation_key)
         for plot in self.plots:
-            plot_calls = plot.compile_necessary_info(
-                animation_values, animation_key, plot_calls
-            )
-        return plot_calls
-
-    def verify_figure_data(self, animation_values, animation_key):
-        for plot_type, plot_call in self.plot_calls.items():
-            _ds = plot_type.generate_data(
-                plot_type, *plot_call["args"], **plot_call["kwargs"]
-            )
-            self.dataset = xr.merge([self.dataset, _ds])
-            self.dataset.attrs.update(_ds.attrs)
-        # for subfigure in self.subfigures:
-        #     # Recursive call for subfigures
-        #     subfigure.verify_figure_data(animation_values, animation_key)
-        # for plot in self.plots:
-        #     necessary_data_exists = plot.verify_data(
-        #         self.dataset, animation_values, animation_key
-        #     )
-        #     if not necessary_data_exists:
-        #         self.dataset = plot.generate_data(
-        #             self.dataset, animation_values, animation_key
-        #         )
+            plot.generate_data(animation_values, animation_key)
 
     def create_figure(self, parent_fig=None, parent_spec=None, animation_key=None):
         if parent_fig is None:
@@ -256,7 +219,7 @@ class Figure:
                 else None,
                 projection=plot.projection,
             )
-            plot.create_axes_config(self.dataset)
+            plot.create_axes_config()
 
         # Recursively create figures for each subfigure
         for subfigure in self.subfigures:

@@ -138,29 +138,29 @@ class Orbit(Scatter):
         for planet_ind in self.planet_params["planets_to_plot"]:
             self.add_planet_kwargs(planet_ind, self.planet_params["planet_plot_kwargs"])
 
-    def verify_data(self, dataset, animation_values, animation_key):
-        """
-        Make sure we have x, y, z information for all objects
-        Args:
-            dataset (xr.Dataset):
-                Dataset containing the data and coordinates
-            animation_values (numpy.ndarray):
-                List of values for the animation
-            animation_key (str):
-                Key for the animation values in the plot object's dataframe
-        """
-        # Check that we have the x, y, z coordinates for all objects
-        if self.planet_params.get("plot"):
-            for planet_ind in self.planet_params["planets_to_plot"]:
-                # Check for data of all planets that should be plotted
-                planet_data = self.get_planet_da(planet_ind, dataset)
-                for var in ["x", "y", "z"]:
-                    if var not in planet_data.variables:
-                        return False
-                    if np.any(np.isnan(planet_data[var])):
-                        return False
-        dataset = self.convert_units(dataset)
-        return True
+    # def verify_data(self, dataset, animation_values, animation_key):
+    #     """
+    #     Make sure we have x, y, z information for all objects
+    #     Args:
+    #         dataset (xr.Dataset):
+    #             Dataset containing the data and coordinates
+    #         animation_values (numpy.ndarray):
+    #             List of values for the animation
+    #         animation_key (str):
+    #             Key for the animation values in the plot object's dataframe
+    #     """
+    #     # Check that we have the x, y, z coordinates for all objects
+    #     if self.planet_params.get("plot"):
+    #         for planet_ind in self.planet_params["planets_to_plot"]:
+    #             # Check for data of all planets that should be plotted
+    #             planet_data = self.get_planet_da(planet_ind, dataset)
+    #             for var in ["x", "y", "z"]:
+    #                 if var not in planet_data.variables:
+    #                     return False
+    #                 if np.any(np.isnan(planet_data[var])):
+    #                     return False
+    #     dataset = self.convert_units(dataset)
+    #     return True
 
     # def generate_data(self, dataset, animation_values, animation_key):
     #     """
@@ -200,9 +200,9 @@ class Orbit(Scatter):
 
     #     return dataset
 
-    def draw_plot(self, dataset, animation_value, animation_key):
-        n_vals = dataset[animation_key].size
-        current_ind = np.argmax(dataset[animation_key].values == animation_value)
+    def draw_plot(self, animation_value, animation_key):
+        n_vals = self.data[animation_key].size
+        current_ind = np.argmax(self.data[animation_key].values == animation_value)
         current_view = self.calc_frame_view(current_ind, n_vals)
         if self.planet_params.get("plot"):
             # Start by getting all the planet plotting information
@@ -211,7 +211,7 @@ class Orbit(Scatter):
             )
             for i, planet_ind in enumerate(self.planet_params["planets_to_plot"]):
                 planet = self.system.planets[planet_ind]
-                planet_ds = self.get_planet_da(planet_ind, dataset)
+                planet_ds = self.get_planet_da(planet_ind)
 
                 # Planet's info for marker size
                 r_v, r_p, r_pv = util.calc_object_viewer_vectors(
@@ -221,7 +221,7 @@ class Orbit(Scatter):
                     self.max_a,
                 )
                 planet_viewer_angle = util.calc_object_viewer_angle(r_p, r_pv)
-                self.planet_marker_size(planet, planet_viewer_angle, factor=0.5)
+                self.planet_marker_size(planet_ind, planet_viewer_angle, factor=1)
 
                 # Used for z-ordering
                 planet_viewer_orth_dist = util.calc_object_viewer_orth_dist(r_v, r_p)
@@ -233,14 +233,15 @@ class Orbit(Scatter):
                 planet = self.system.planets[planet_ind]
                 planet_zorder = zorders[i]
                 planet.plot_kwargs["zorder"] = planet_zorder
+                self.system.planets[planet_ind] = planet
 
             # Finally, plot the planets
             for planet_ind in self.planet_params["planets_to_plot"]:
-                self.draw_planet(planet_ind, dataset, animation_value, animation_key)
+                self.draw_planet(planet_ind, animation_value, animation_key)
 
-    def get_planet_da(self, planet_ind, dataset):
+    def get_planet_da(self, planet_ind):
         # dist_attrs = self.get_dist_attrs(self.system, lists=False)
-        planet_dataset = dataset.sel(
+        planet_dataset = self.data.sel(
             object="planet",
             index=planet_ind,
             ref_frame=self.orbit_params["ref_frame"],
@@ -249,17 +250,17 @@ class Orbit(Scatter):
         )
         return planet_dataset
 
-    def get_system_da(self, dataset):
-        planet_dataset = dataset.sel(
+    def get_system_da(self):
+        system_dataset = self.data.sel(
             object="planet",
             ref_frame=self.orbit_params["ref_frame"],
             prop=self.orbit_params["propagation"],
         )
-        return planet_dataset
+        return system_dataset
 
-    def draw_planet(self, planet_ind, dataset, animation_value, animation_key):
+    def draw_planet(self, planet_ind, animation_value, animation_key):
         planet = self.system.planets[planet_ind]
-        planet_dataset = self.get_planet_da(planet_ind, dataset)
+        planet_dataset = self.get_planet_da(planet_ind)
 
         # Plot the planet
         self.generic_plot(
@@ -268,6 +269,7 @@ class Orbit(Scatter):
             animation_key,
             plot_kwargs=planet.plot_kwargs,
         )
+        self.ax.set_title(f"{planet.plot_kwargs['s']}")
         if self.planet_params.get("add_trail"):
             # Add a dashed line behind the planet
             self.generic_plot(
@@ -293,9 +295,9 @@ class Orbit(Scatter):
                         planet_dataset, animation_value, animation_key, ax_letter
                     )
 
-    def convert_units(self, ds):
-        ds = misc.add_units(
-            ds,
+    def convert_units(self):
+        self.data = misc.add_units(
+            self.data,
             self.orbit_params["unit"],
             distance=self.orbit_params.get("distance"),
             pixel_scale=self.orbit_params.get("pixel_scale"),
@@ -310,38 +312,42 @@ class Orbit(Scatter):
                 if self.ax_kwargs[f"{key}label"] == val:
                     self.ax_kwargs[f"{key}label"] = new_name
 
-        return ds
-
     def add_planet_kwargs(self, planet_ind, planet_plot_kwargs):
         planet = self.system.planets[planet_ind]
         if hasattr(planet, "plot_kwargs"):
             planet_plot_kwargs.update(planet.plot_kwargs)
-        planet.plot_kwargs = planet_plot_kwargs
+        planet.plot_kwargs = copy.copy(planet_plot_kwargs)
         planet.base_size = self.planet_base_size(planet)
+        self.system.planets[planet_ind] = planet
 
-    def planet_marker_size(self, planet, planet_viewer_angle, factor=0.5):
+    def planet_marker_size(self, planet_ind, planet_viewer_angle, factor=0.5):
         """
         Make the planet marker smaller when the planet is behind the star in its orbit
         """
-        factor_to_use = max(min(10, factor * planet.base_size), 20)
+        planet = self.system.planets[planet_ind]
+        factor_to_use = max(min(35, factor * planet.base_size), 15)
         marker_size = planet.base_size + (
             (180 - planet_viewer_angle.to(u.deg).value) / 180 * factor_to_use
         )
         planet.plot_kwargs["s"] = marker_size
+        self.system.planets[planet_ind] = planet
 
     def planet_base_size(self, planet):
-        min_size = 15
-        max_size = 40
-        minv = 1 * u.M_earth
-        maxv = 1 * u.M_jupiter
-        mass_to_use = max(min(planet.mass, 1 * u.M_jupiter), 1 * u.M_earth)
-        sizes = np.logspace(np.log10(min_size), np.log10(max_size), 10)
-        masses = np.logspace(0, np.log10(maxv / minv).decompose().value, 10) * minv
-        base_s = scipy.interpolate.interp1d(masses, sizes)(mass_to_use.to(u.M_earth))
+        min_marker_size = 10
+        max_marker_size = 40
+        # minv = 1 * u.M_earth
+        # Mercury mass
+        min_mass = (3.3011e23 * u.kg).to(u.M_earth).value
+        max_mass = (1 * u.M_jupiter).to(u.M_earth).value
+        planet_mass = planet.mass.to(u.M_earth).value
+        mass_to_use = max(min(planet_mass, max_mass), min_mass)
+        sizes = np.logspace(np.log10(min_marker_size), np.log10(max_marker_size), 10)
+        masses = np.logspace(0, np.log10(max_mass / min_mass), 10) * min_mass
+        base_s = scipy.interpolate.interp1d(masses, sizes)(mass_to_use)
         return base_s
 
-    def adjust_settings(self, dataset, animation_value, animation_key):
-        super().generic_settings(dataset, animation_value, animation_key)
+    def adjust_settings(self, animation_value, animation_key):
+        super().generic_settings(animation_value, animation_key)
         if self.is_3d:
             self.darken_3d_background()
 
@@ -351,10 +357,12 @@ class Orbit(Scatter):
         self.ax.yaxis.set_pane_color(color)
         self.ax.zaxis.set_pane_color(color)
 
-    def create_axes_config(self, data):
+    def create_axes_config(self):
         # Set the axis limits if they are not specified
-        data = self.get_system_da(data)
-        self.handle_axes_limits_and_ticks(data, self.ax_kwargs.get("equal_lims"))
+        data = self.get_system_da()
+        self.handle_axes_limits_and_ticks(
+            data=data, equal=self.ax_kwargs.get("equal_lims")
+        )
 
     def compile_necessary_info(self, animation_values, animation_key, plot_calls):
         data_args = (
@@ -383,60 +391,77 @@ class Orbit(Scatter):
             dist_attrs = {"name": system.star.name, "origin": system.origin}
         return dist_attrs
 
-    def generate_data(self, times, all_orbit_args):
+    def generate_data(self, animation_values, animation_key):
+        if animation_key == "time":
+            times = Time(animation_values)
+        else:
+            raise NotImplementedError(
+                (
+                    "WHAT ARE YOU ANIMATING AN ORBIT IN OTHER THAN TIME?"
+                    " Sorry, it's late."
+                )
+            )
+        self.data = self.system.propagate(
+            times,
+            prop=self.orbit_params["propagation"],
+            ref_frame=self.orbit_params["ref_frame"],
+            convention=self.orbit_params["convention"],
+            clean=True,
+        )
+        self.convert_units()
         # Create the base dataset
-        all_dist_attrs = {"name": [], "origin": []}
-        for (plot, system, prop, ref_frame, convention) in all_orbit_args:
-            _dist_attrs = plot.get_dist_attrs(system, lists=False)
-            for key, val in _dist_attrs.items():
-                all_dist_attrs[key].append(val)
+        # all_dist_attrs = {"name": [], "origin": []}
+        # for (plot, system, prop, ref_frame, convention) in all_orbit_args:
+        #     _dist_attrs = plot.get_dist_attrs(system, lists=False)
+        #     for key, val in _dist_attrs.items():
+        #         all_dist_attrs[key].append(val)
 
-        obs_ds = system.create_dataset(times)
-        # obs_ds = obs_ds.expand_dims(all_dist_attrs)
-        for orbit_args in all_orbit_args:
-            orbit_plot, system, prop, ref_frame, convention = orbit_args
-            dist_attrs = orbit_plot.get_dist_attrs(system)
-            # if obs_ds is None:
-            #     obs_ds = system.propagate(
-            #         times,
-            #         prop=prop,
-            #         ref_frame=ref_frame,
-            #         convention=convention,
-            #     )
-            #     breakpoint()
+        # obs_ds = system.create_dataset(times)
+        # # obs_ds = obs_ds.expand_dims(all_dist_attrs)
+        # for orbit_args in all_orbit_args:
+        #     orbit_plot, system, prop, ref_frame, convention = orbit_args
+        #     dist_attrs = orbit_plot.get_dist_attrs(system)
+        #     # if obs_ds is None:
+        #     #     obs_ds = system.propagate(
+        #     #         times,
+        #     #         prop=prop,
+        #     #         ref_frame=ref_frame,
+        #     #         convention=convention,
+        #     #     )
+        #     #     breakpoint()
 
-            # else:
-            if np.all(np.isnan(obs_ds["x"].sel(prop=prop))):
-                _obs_ds = system.propagate(
-                    times,
-                    # ds=obs_ds,
-                    prop=prop,
-                    ref_frame=ref_frame,
-                    convention=convention,
-                )
-            else:
-                _obs_ds = system.convert_to_frame(
-                    obs_ds,
-                    prop=prop,
-                    ref_frame=ref_frame,
-                    convention=convention,
-                )
-            _obs_ds = orbit_plot.convert_units(_obs_ds)
-            # _obs_ds = _obs_ds.expand_dims(dist_attrs)
-            merged_ds = xr.merge([obs_ds, _obs_ds])
-            # Update values only where they are NaN in dataset
-            for var in obs_ds.data_vars:
-                # Check if the variable is present in both datasets
-                if var in _obs_ds.data_vars:
-                    # Use np.where to update only NaN values
-                    merged_ds[var].values = np.where(
-                        np.isnan(obs_ds[var].values),
-                        _obs_ds[var].values,
-                        obs_ds[var].values,
-                    )
-            obs_ds = merged_ds
-            # obs_ds = orbit_plot.convert_units(obs_ds)
-        return obs_ds
+        #     # else:
+        #     if np.all(np.isnan(obs_ds["x"].sel(prop=prop))):
+        #         _obs_ds = system.propagate(
+        #             times,
+        #             # ds=obs_ds,
+        #             prop=prop,
+        #             ref_frame=ref_frame,
+        #             convention=convention,
+        #         )
+        #     else:
+        #         _obs_ds = system.convert_to_frame(
+        #             obs_ds,
+        #             prop=prop,
+        #             ref_frame=ref_frame,
+        #             convention=convention,
+        #         )
+        #     _obs_ds = orbit_plot.convert_units(_obs_ds)
+        #     # _obs_ds = _obs_ds.expand_dims(dist_attrs)
+        #     merged_ds = xr.merge([obs_ds, _obs_ds])
+        #     # Update values only where they are NaN in dataset
+        #     for var in obs_ds.data_vars:
+        #         # Check if the variable is present in both datasets
+        #         if var in _obs_ds.data_vars:
+        #             # Use np.where to update only NaN values
+        #             merged_ds[var].values = np.where(
+        #                 np.isnan(obs_ds[var].values),
+        #                 _obs_ds[var].values,
+        #                 obs_ds[var].values,
+        #             )
+        #     obs_ds = merged_ds
+        # obs_ds = orbit_plot.convert_units(obs_ds)
+        # return obs_ds
 
     # def generate_dataset(self, dataset, times, orbit_args):
     #     """

@@ -45,6 +45,8 @@ def calc_viewer_position(elev, azim, dist):
     return u.Quantity([x, y, z])
 
 def get_nice_number(value, round=False):
+    if value == 0:
+        return 0
     # Exponent of base 10
     exponent = np.floor(np.log10(value))
 

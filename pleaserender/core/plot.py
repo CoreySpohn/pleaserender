@@ -67,17 +67,17 @@ class Plot:
         if animation_kwargs is not None:
             self.animation_kwargs.update(animation_kwargs)
 
-    def draw_plot(self, dataset, animation_value, animation_key, plot_kwargs=None):
+    def draw_plot(self, animation_value, animation_key, plot_kwargs=None):
         """
         Method to draw the plot. Nothing past the generic plotting in this base class
         """
         self.generic_plot(
-            dataset, animation_value, animation_key, plot_kwargs=plot_kwargs
+            self.data, animation_value, animation_key, plot_kwargs=plot_kwargs
         )
 
     def generic_plot(
         self,
-        dataset,
+        data,
         animation_value,
         animation_key,
         axis_keys=None,
@@ -93,7 +93,7 @@ class Plot:
         if animation_kwargs is None:
             animation_kwargs = self.animation_kwargs
         data = util.filter_data(
-            dataset,
+            data,
             animation_value,
             animation_key,
             animation_kwargs["animation_style"],
@@ -108,10 +108,10 @@ class Plot:
             plot_kwargs = self.plot_kwargs
         plot_method(*separated_data, **plot_kwargs)
 
-    def adjust_settings(self, dataset, animation_value, animation_key):
-        self.generic_settings(dataset, animation_value, animation_key)
+    def adjust_settings(self, animation_value, animation_key):
+        self.generic_settings(animation_value, animation_key)
 
-    def generic_settings(self, dataset, animation_value, animation_key):
+    def generic_settings(self, animation_value, animation_key):
         # Evaulate any f-strings provided in ax_kwargs
         original_kwargs = {}
         for key, val in self.ax_kwargs.items():
@@ -137,8 +137,10 @@ class Plot:
         self.ax_kwargs.update(original_kwargs)
 
         if self.is_3d:
-            n_vals = dataset[animation_key].size
-            current_index = np.argmax(dataset[animation_key].values == animation_value)
+            n_vals = self.data[animation_key].size
+            current_index = np.argmax(
+                self.data[animation_key].values == animation_value
+            )
             frame_view = self.calc_frame_view(current_index, n_vals)
             self.ax.view_init(**frame_view)
 
@@ -166,24 +168,24 @@ class Plot:
                 frame_view["elev"] = 90
         return frame_view
 
-    def verify_data(self, dataset, animation_values, animation_key):
+    def verify_data(self, animation_values, animation_key):
         """
         Method to check if all the data required for the plot exists.
         Args:
-            dataset (xr.Dataset):
-                Dataset containing the data and coordinates
+            # dataset (xr.Dataset):
+            #     Dataset containing the data and coordinates
             animation_values (numpy.ndarray):
                 List of values for the animation
             animation_key (str):
                 Key for the animation values in the plot object's dataframe
         """
-        animation_data = dataset[animation_key].values
+        animation_data = self.data[animation_key].values
 
         # Check if each element in animation_values is in animation_data
         all_values_present = np.isin(animation_values, animation_data).all()
         return all_values_present
 
-    def generate_data(self, dataset, animation_values, animation_key):
+    def generate_data(self, animation_values, animation_key):
         """
         Method to generate all the data required. Not implemented in the
         core classes.
@@ -192,16 +194,16 @@ class Plot:
             "generate_data method must be implemented by plot/ classes."
         )
 
-    def create_axes_config(self, data):
+    def create_axes_config(self):
         """
         Method that fills ax_kwargs with defaults for things not already
         specified.
         Currently sets the axis limits.
         """
         # Set the axis limits if they are not specified
-        self.handle_axes_limits_and_ticks(data, self.ax_kwargs.get("equal_lims"))
+        self.handle_axes_limits_and_ticks(self.ax_kwargs.get("equal_lims"))
 
-    def handle_axes_limits_and_ticks(self, data, equal=False):
+    def handle_axes_limits_and_ticks(self, data=None, equal=False):
         necessary_axes = ["x", "y"]
         if self.axis_keys.get("z") is not None:
             necessary_axes.append("z")
@@ -215,9 +217,12 @@ class Plot:
             lims_exist = self.ax_kwargs.get("lims") is not None
             if not lims_exist:
                 self.ax_kwargs["lims"] = {}
-        self.ax_lims_helper(data, np.array(necessary_axes)[using_unset], equal=equal)
+        necessary_axes = np.array(necessary_axes)[using_unset]
+        self.ax_lims_helper(necessary_axes, data=data, equal=equal)
 
-    def ax_lims_helper(self, data, necessary_axes, equal=False):
+    def ax_lims_helper(self, necessary_axes, data=None, equal=False):
+        if data is None:
+            data = self.data
         if equal:
             max_val = 0
             for ax_letter in necessary_axes:
@@ -249,7 +254,8 @@ class Plot:
             for ax_letter in self.given_axis_keys:
                 if self.ax_kwargs.get(f"{ax_letter}lim") is None:
                     axlims = kwargs["lims"][ax_letter]
-                    self.set_lims_and_ticks(*axlims, use_minor=~self.is_3d)
+                    use_minor = not self.is_3d
+                    self.set_lims_and_ticks(*axlims, use_minor=use_minor)
                     # assert (
                     #     self.ax_kwargs.get(f"{ax_letter}lim") is None
                     # ), f"lims and {ax_letter}lim cannot both be set."
@@ -265,7 +271,7 @@ class Plot:
 
     def project_point(
         self,
-        dataset,
+        data,
         animation_value,
         animation_key,
         ax_letter,
@@ -273,7 +279,7 @@ class Plot:
         projection_kwargs=None,
     ):
         min_value = self.ax_kwargs["lims"][ax_letter][0]
-        _args = (dataset, animation_value, animation_key)
+        _args = (data, animation_value, animation_key)
         _axis_keys = ["x", "y", "z"]
         _axis_keys.remove(ax_letter)
         axis_keys = {key: key for key in _axis_keys}
@@ -295,14 +301,14 @@ class Plot:
 
     def project_trail(
         self,
-        dataset,
+        data,
         animation_value,
         animation_key,
         ax_letter,
         projection_kwargs=None,
     ):
         min_value = self.ax_kwargs["lims"][ax_letter][0]
-        _args = (dataset, animation_value, animation_key)
+        _args = (data, animation_value, animation_key)
         _axis_keys = ["x", "y", "z"]
         _axis_keys.remove(ax_letter)
         axis_keys = {key: key for key in _axis_keys}

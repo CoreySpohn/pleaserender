@@ -20,7 +20,7 @@ from pleaserender.exoplanet import Image, Orbit
 plt.style.use("dark_background")
 
 # Create some simple data for the plots
-times = Time(np.linspace(2000, 2005, 50), format="decimalyear")
+times = Time(np.linspace(2000, 2003, 200), format="decimalyear")
 
 # Input files
 coronagraph1_dir = Path("input/coronagraphs/LUVOIR-B-VC6_timeseries/")
@@ -33,6 +33,7 @@ scene = Path("input/scenes/999-HIP_-TYC_SUN-mv_4.83-L_1.00-d_10.00-Teff_5778.00.
 coro1 = coronagraph.Coronagraph(coronagraph1_dir)
 coro2 = coronagraph.Coronagraph(coronagraph2_dir)
 system = ExovistaSystem(scene)
+# system.planets = system.planets[:3]
 
 # GETTING EXOVISTA POSITION DATA
 # dataset = system.create_dataset(times)
@@ -94,10 +95,9 @@ obs_scen = {
     "return_spectrum": False,
     "return_frames": False,
     "return_sources": True,
-    "separate_sources": False,
     "wavelength_resolved_flux": False,
     "wavelength_resolved_transmission": False,
-    "detector_pixel_scale": 0.001 * u.arcsec / u.pix,
+    "detector_pixel_scale": 0.005 * u.arcsec / u.pix,
     "detector_shape": (300, 300),
 }
 observing_scenario = observing_scenario.ObservingScenario(obs_scen)
@@ -109,7 +109,7 @@ observing_scenario = observing_scenario.ObservingScenario(obs_scen)
 # plot_image2 = Image(system, coro2, observing_scenario, ax_kwargs={"title": "APLC"})
 
 # planet_params = {"planets_to_plot": [0], "planet_plot_kwargs": {"color": "blue"}}
-planet_params = {}
+planet_params = {"project": {"point": ["z"], "trail": ["z"]}}
 plot3d = Orbit(
     system,
     # plane_2d="z",
@@ -119,6 +119,7 @@ plot3d = Orbit(
         "propagation": "nbody",
         "unit": u.AU,
     },
+    planet_params=planet_params,
 )
 plot2d = Orbit(
     system,
@@ -152,8 +153,21 @@ plot2d = Orbit(
 #     ax_kwargs={"aspect": "equal", "lims": {"x": (-10, 10), "y": (-10, 10)}},
 #     orbit_params={"frame": "helio-sky", "propagation": "nbody", "unit": u.AU},
 # )
-plot_image1 = Image(system, coro1, observing_scenario, ax_kwargs={"title": "Vector"})
-plot_image2 = Image(system, coro2, observing_scenario, ax_kwargs={"title": "APLC"})
+# plot_image1 = Image(system, coro1, observing_scenario, ax_kwargs={"title": "Vector"})
+plot_image1 = Image(
+    system,
+    coro2,
+    observing_scenario,
+    ax_kwargs={"title": "APLC (coro)"},
+    imaging_params={"plane": "coro"},
+)
+plot_image2 = Image(
+    system,
+    coro2,
+    observing_scenario,
+    ax_kwargs={"title": "APLC (det)"},
+    imaging_params={"plane": "det", "object": "planet"},
+)
 # plot2d_exovista_pix = Orbit(
 #     system,
 #     plane_2d="z",
@@ -163,23 +177,23 @@ plot_image2 = Image(system, coro2, observing_scenario, ax_kwargs={"title": "APLC
 # )
 
 # Create a figure and add the plots
-figure_kwargs = {"figsize": (15, 15), "layout": None}
-main_figure = Figure(fig_kwargs=figure_kwargs, ncols=2, nrows=2)
+figure_kwargs = {"figsize": (10, 10), "layout": None}
+main_figure = Figure(fig_kwargs=figure_kwargs)  # , ncols=2, nrows=2)
 # main_figure.please_add_dataset(dataset)
 main_figure.please_set_animation_values(times, "time")
 
 # Add plots to the figures
 main_figure.please_add_plot(plot3d)
-main_figure.please_add_plot(plot2d, col=1)
+# main_figure.please_add_plot(plot2d, col=1)
 # main_figure.please_add_plot(plot2d_exovista, col=1)
 # main_figure.please_add_plot(plot2d_exovista_pix, col=1)
 # main_figure.please_add_plot(plot2d_helio, col=1)
 # main_figure.please_add_plot(plot2d_sky, col=1)
-main_figure.please_add_plot(plot_image1, row=1)
-main_figure.please_add_plot(plot_image2, col=1, row=1)
+# main_figure.please_add_plot(plot_image1, row=1)
+# main_figure.please_add_plot(plot_image2, col=1, row=1)
 
 # Set the animation values and then render
-render_settings = {"animation_duration": 5}
+render_settings = {"animation_duration": 10}
 # main_figure.please_preview([-1])
 main_figure.please_render_video(
     Path("renders/exovista.mp4"), render_settings=render_settings
