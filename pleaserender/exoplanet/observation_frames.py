@@ -13,7 +13,10 @@ class ObservationFrames(Image):
 
     def add_extra_sel_call(self, sel_call, obs, animation_value, animation_key):
         if self.cumulative:
-            sel_call["frame"] = np.arange(animation_value)
+            if self.data[animation_key][0].data == animation_value:
+                sel_call["frame"] = animation_value
+            else:
+                sel_call["frame"] = np.arange(animation_value)
         else:
             sel_call["frame"] = animation_value
 
@@ -21,6 +24,10 @@ class ObservationFrames(Image):
 
     def process_photons(self, photons):
         if self.cumulative:
-            photons = photons.sum("frame")
+            if "frame" in photons.dims:
+                # Sum the photons over, if we have not already selected an
+                # individual frame (such as the first frame)
+                photons = photons.sum("frame")
+
         photons = photons[self.imsel].data
         return photons
