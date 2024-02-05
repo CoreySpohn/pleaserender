@@ -5,6 +5,7 @@ import numpy as np
 import xarray as xr
 from astropy.time import Time
 from coronagraphoto import Observation, Observations
+from matplotlib.colors import LogNorm
 from tqdm import tqdm
 
 from pleaserender import util
@@ -95,7 +96,7 @@ class Image(Plot):
         photons = self.get_frame_data(animation_value, animation_key)
         if plot_kwargs is None:
             plot_kwargs = self.plot_kwargs
-        self.ax.imshow(photons, origin="lower", cmap="viridis")
+        self.ax.imshow(photons, origin="lower", cmap="viridis", norm=LogNorm())
 
     def get_frame_data(self, animation_value, animation_key):
         obs = self.get_observation_object(animation_value, animation_key)

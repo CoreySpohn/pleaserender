@@ -191,8 +191,11 @@ class Figure:
                 raise NotImplementedError(
                     f"Type {type(animation_value)} not implemented yet"
                 )
+        else:
+            title = self.fig_kwargs["title"]
         self.fig.suptitle(title)
-        self.pbar.update(1)
+        if hasattr(self, "pbar"):
+            self.pbar.update(1)
 
     def clear(self):
         # Clear plots in the subfigures first
