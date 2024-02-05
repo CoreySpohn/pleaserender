@@ -161,3 +161,4 @@ cython_debug/
 
 renders/
 input/
+.DS_Store
