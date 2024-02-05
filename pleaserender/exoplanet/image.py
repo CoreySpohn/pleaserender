@@ -12,14 +12,7 @@ from pleaserender.core import Plot
 
 
 class Image(Plot):
-    def __init__(
-        self,
-        system,
-        coronagraph,
-        observing_scenario,
-        imaging_params=None,
-        **kwargs,
-    ):
+    def __init__(self, observation, imaging_params=None, **kwargs):
         default_imaging_params = {"object": "img", "plane": "coro"}
         self.imaging_params = default_imaging_params
         if imaging_params is not None:
@@ -40,9 +33,10 @@ class Image(Plot):
             **kwargs,
         )
 
-        self.system = system
-        self.coronagraph = coronagraph
-        self.observing_scenario = observing_scenario
+        self.observation = observation
+        self.system = observation.system
+        self.coronagraph = observation.coronagraph
+        self.observing_scenario = observation.observing_scenario
         self.plot_method = "imshow"
         self.name = "image"
 
@@ -51,21 +45,17 @@ class Image(Plot):
     #     return obs_ds
 
     def generate_data(self, animation_values, animation_key):
-        base_observation = Observation(
-            self.coronagraph,
-            self.system,
-            self.observing_scenario,
-            logging_level="WARNING",
-        )
+        times = self.observation.time.reshape(1)
+        wavelengths = self.observation.central_wavelength.reshape(1)
         if animation_key == "time":
             times = Time(animation_values)
-            wavelengths = base_observation.central_wavelength.reshape(1)
         elif animation_key == "central_wavelength":
-            times = base_observation.time.reshape(1)
             wavelengths = animation_values
+        elif animation_key == "frame":
+            pass
         else:
             raise ValueError("animation_key must be 'time' or 'central_wavelength'.")
-        all_obs = Observations(base_observation, times, wavelengths)
+        all_obs = Observations(self.observation, times, wavelengths)
         # self.observations = set(all_obs.create_observations())
         self.data = all_obs.run()
 
@@ -110,6 +100,16 @@ class Image(Plot):
     def get_frame_data(self, animation_value, animation_key):
         obs = self.get_observation_object(animation_value, animation_key)
         necessary_dims = self.data.attrs["dist_attrs_for_images"]
+        sel_call = self.create_sel_call(obs, necessary_dims)
+        sel_call = self.add_extra_sel_call(
+            sel_call, obs, animation_value, animation_key
+        )
+        base_data = self.data.sel(**sel_call)
+        photons = self.process_photons(base_data)
+        # photons = self.data.sel(**sel_call)[self.imsel].data
+        return photons
+
+    def create_sel_call(self, obs, necessary_dims):
         sel_call = {}
         if self.imaging_params["plane"] == "coro":
             sel_call["xpix(coro)"] = np.arange(obs.coronagraph.npixels)
@@ -126,8 +126,17 @@ class Image(Plot):
             elif isinstance(val, Time):
                 val = val.datetime64
             sel_call[dim] = val
-        photons = self.data.sel(**sel_call)[self.imsel].data
-        return photons
+        return sel_call
+
+    def process_photons(self, photons):
+        return photons[self.imsel].data
+
+    def add_extra_sel_call(self, sel_call, obs, animation_value, animation_key):
+        """
+        Add any additional selection calls to the sel_call dictionary. This method
+        should be overridden by subclasses to add any additional selection calls
+        """
+        return sel_call
 
     def ax_lims_helper(self, necessary_axes, data=None, equal=False):
         if self.imaging_params["plane"] == "coro":

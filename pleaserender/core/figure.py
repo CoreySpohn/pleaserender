@@ -50,6 +50,7 @@ class Figure:
         colspan=1,
         sharex_plot=None,
         sharey_plot=None,
+        shared_plot_data=None,
         dataset=None,
     ):
         plot_type = plot.__class__.__name__
@@ -65,6 +66,7 @@ class Figure:
             "sharey_plot": sharey_plot,
         }
         plot.data_provided = dataset is not None
+        plot.shared_plot_data = shared_plot_data
         if plot.data_provided:
             plot.data = dataset
         self.plots.append(plot)
@@ -172,8 +174,23 @@ class Figure:
         if "title" not in self.fig_kwargs:
             if isinstance(animation_value, np.datetime64):
                 title = f"{Time(animation_value).decimalyear:.2f}"
+            elif isinstance(animation_value, u.Quantity):
+                title = (
+                    f"{self.animation_key.replace('_', ' ')} "
+                    "{animation_value.value:.2f}({animation_value.unit})"
+                )
+            elif isinstance(animation_value, float):
+                title = (
+                    f"{self.animation_key.replace('_', ' ')} "
+                    "{animation_value.value:.2f}"
+                )
+            elif isinstance(animation_value, np.int64):
+                title = f"{self.animation_key.replace('_', ' ')} {animation_value}"
             else:
-                raise NotImplementedError("Type not implemented yet")
+                breakpoint()
+                raise NotImplementedError(
+                    f"Type {type(animation_value)} not implemented yet"
+                )
         self.fig.suptitle(title)
         self.pbar.update(1)
 
@@ -191,7 +208,13 @@ class Figure:
         for subfigure in self.subfigures:
             subfigure.generate_data(animation_values, animation_key)
         for plot in self.plots:
-            plot.generate_data(animation_values, animation_key)
+            if plot.shared_plot_data is not None:
+                # Get the data from the other plot
+                if getattr(plot.shared_plot_data, "data") is None:
+                    raise ValueError("The shared plot data has not been generated yet.")
+                plot.data = plot.shared_plot_data.data
+            else:
+                plot.generate_data(animation_values, animation_key)
 
     def create_figure(self, parent_fig=None, parent_spec=None, animation_key=None):
         if parent_fig is None:

@@ -101,6 +101,13 @@ obs_scen = {
     "detector_shape": (300, 300),
 }
 observing_scenario = observing_scenario.ObservingScenario(obs_scen)
+obs1 = observation.Observation(
+    coro1, system, observing_scenario, logging_level="WARNING"
+)
+obs2 = observation.Observation(
+    coro2, system, observing_scenario, logging_level="WARNING"
+)
+
 
 # Define plots
 # planet_params_3d = {"project": {"point": ["x", "y", "z"], "trail": ["x", "y", "z"]}}
