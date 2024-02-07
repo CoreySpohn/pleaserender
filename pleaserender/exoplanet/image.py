@@ -13,7 +13,7 @@ from pleaserender.core import Plot
 
 
 class Image(Plot):
-    def __init__(self, observation, imaging_params=None, **kwargs):
+    def __init__(self, observation, draw_key="time", imaging_params=None, **kwargs):
         default_imaging_params = {"object": "img", "plane": "coro"}
         self.imaging_params = default_imaging_params
         if imaging_params is not None:
@@ -30,9 +30,7 @@ class Image(Plot):
         if "auto_title" not in kwargs["animation_kwargs"]:
             kwargs["animation_kwargs"]["auto_title"] = True
 
-        super().__init__(
-            **kwargs,
-        )
+        super().__init__(draw_key, **kwargs)
 
         self.observation = observation
         self.system = observation.system
@@ -40,25 +38,48 @@ class Image(Plot):
         self.observing_scenario = observation.observing_scenario
         self.plot_method = "imshow"
         self.name = "image"
+        # self.valid_animation_keys = [
+        #     "time",
+        #     "central_wavelength",
+        #     "frame",
+        #     "spectral_wavelength(nm)",
+        # ]
 
     # def generate_data_old(self, observations):
     #     obs_ds = Observations.run(self, observations=observations)
     #     return obs_ds
 
-    def generate_data(self, animation_values, animation_key):
+    def generate_data(self, generation_data):
         times = self.observation.time.reshape(1)
         wavelengths = self.observation.central_wavelength.reshape(1)
-        if animation_key == "time":
-            times = Time(animation_values)
-        elif animation_key == "central_wavelength":
-            wavelengths = animation_values
-        elif animation_key == "frame":
-            pass
-        else:
-            raise ValueError("animation_key must be 'time' or 'central_wavelength'.")
+        has_time = "time" in generation_data
+        has_wavelength = "central_wavelength" in generation_data
+        assert (has_time and not has_wavelength) or (not has_time and has_wavelength), (
+            "The generation_data dictionary must contain either a 'time'"
+            " or 'central_wavelength' key."
+        )
+        if "time" in generation_data:
+            times = generation_data["time"]
+        elif "central_wavelength" in generation_data:
+            wavelengths = generation_data["central_wavelength"]
         all_obs = Observations(self.observation, times, wavelengths)
         # self.observations = set(all_obs.create_observations())
         self.data = all_obs.run()
+
+    def get_required_keys(self):
+        """
+        Get the keys that are required to plot the data
+        """
+        self.get_required_keys = []
+        all_possible_keys = [
+            "time",
+            "central_wavelength",
+            "frame",
+            "spectral_wavelength(nm)",
+        ]
+        for key in all_possible_keys:
+            if key in self.data.dims:
+                self.required_keys.append(key)
 
     def compile_necessary_info(self, animation_values, animation_key, plot_calls):
         base_observation = Observation(
@@ -92,19 +113,24 @@ class Image(Plot):
         )
         return obs
 
-    def draw_plot(self, animation_value, animation_key, plot_kwargs=None):
-        photons = self.get_frame_data(animation_value, animation_key)
+    def draw_plot(self, draw_data, plot_kwargs=None):
+        photons = self.get_frame_data(draw_data)
         if plot_kwargs is None:
             plot_kwargs = self.plot_kwargs
         self.ax.imshow(photons, origin="lower", cmap="viridis", norm=LogNorm())
 
-    def get_frame_data(self, animation_value, animation_key):
+    def get_frame_data(self, draw_data):
+        if "time" in draw_data.keys():
+            animation_key = "time"
+            animation_value = draw_data["time"]
+        elif "central_wavelength" in draw_data.keys():
+            animation_key = "central_wavelength"
+            animation_value = draw_data["central_wavelength"]
         obs = self.get_observation_object(animation_value, animation_key)
+
         necessary_dims = self.data.attrs["dist_attrs_for_images"]
         sel_call = self.create_sel_call(obs, necessary_dims)
-        sel_call = self.add_extra_sel_call(
-            sel_call, obs, animation_value, animation_key
-        )
+        sel_call = self.add_extra_sel_call(sel_call, obs, draw_data)
         base_data = self.data.sel(**sel_call)
         photons = self.process_photons(base_data)
         # photons = self.data.sel(**sel_call)[self.imsel].data

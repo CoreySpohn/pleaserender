@@ -21,7 +21,7 @@ from pleaserender.exoplanet import Image, ObservationFrames, Orbit
 plt.style.use("dark_background")
 
 # Create some simple data for the plots
-times = Time(np.linspace(2000, 2005, 10), format="decimalyear")
+times = Time(np.linspace(2000, 2005, 3), format="decimalyear")
 
 # Input files
 coronagraph1_dir = Path("input/coronagraphs/LUVOIR-B-VC6_timeseries/")
@@ -50,63 +50,32 @@ obs_scen = {
     "central_wavelength": wavelength,
     "time": times[0],
     "exposure_time": 30 * u.day,
-    "frame_time": 4 * u.hr,
+    "frame_time": 5 * u.day,
     "include_star": False,
     "include_planets": True,
     "include_disk": False,
-    # "bandpass": bandpass,
-    "bandpass_model": Gaussian1D,
-    "frac_bandwidth": frac_bandwidth,
+    "bandpass": bandpass,
     "spectral_resolution": 100,
-    "return_spectrum": False,
     "return_frames": True,
-    "return_sources": False,
-    "separate_sources": False,
-    "wavelength_resolved_flux": False,
-    "wavelength_resolved_transmission": False,
-    "time_invariant_planets": False,
+    # "separate_sources": False,
+    # "wavelength_resolved_flux": False,
+    # "wavelength_resolved_transmission": False,
+    # "time_invariant_planets": False,
     "detector_pixel_scale": 0.01 * u.arcsec / u.pix,
     "detector_shape": (300, 300),
 }
 observing_scenario = ObservingScenario(obs_scen)
-obs_scen2 = copy.copy(obs_scen)
-obs_scen2["time_invariant_planets"] = True
-observing_scenario2 = ObservingScenario(obs_scen2)
 obs1 = Observation(coro1, system, observing_scenario, logging_level="WARNING")
-obs2 = Observation(coro1, system, observing_scenario2, logging_level="WARNING")
-# obs3 = observation.Observation(
-#     coro3, system, observing_scenario, logging_level="WARNING"
-# )
-# obs.create_count_rates()
-# obs.count_photons()
+# obs_scen2 = copy.copy(obs_scen)
+# obs_scen2["time_invariant_planets"] = True
+# observing_scenario2 = ObservingScenario(obs_scen2)
 
 
 plot_image1 = ObservationFrames(
     obs1, ax_kwargs={"title": "Current frame"}, imaging_params={"plane": "coro"}
 )
-plot_image_cumu1 = ObservationFrames(
-    obs1,
-    cumulative=True,
-    ax_kwargs={"title": "Cumulative"},
-    imaging_params={"plane": "coro"},
-)
-plot_image2 = ObservationFrames(
-    obs2, ax_kwargs={"title": "Current frame"}, imaging_params={"plane": "coro"}
-)
-plot_image_cumu2 = ObservationFrames(
-    obs2,
-    cumulative=True,
-    ax_kwargs={"title": "Cumulative"},
-    imaging_params={"plane": "coro"},
-)
-# vector_figure = Figure(fig_kwargs={"title": ""}, ncols=2)
-# vector_figure.please_add_plot(plot_image1)
-# vector_figure.please_add_plot(plot_image_cumu1, col=1)
-# plot_image3 = ObservationFrames(
-#     obs1, ax_kwargs={"title": "Current frame"}, imaging_params={"plane": "coro"}
-# )
 # plot_image_cumu1 = ObservationFrames(
-#     obs3,
+#     obs1,
 #     cumulative=True,
 #     ax_kwargs={"title": "Cumulative"},
 #     imaging_params={"plane": "coro"},
@@ -125,31 +94,24 @@ nframes, *_ = obs1.calc_frame_info()
 frame_inds = np.arange(nframes)
 
 # Create a figure and add the plots
-wavelengths = np.linspace(400, 1000, 2) * u.nm
 figure_kwargs = {"figsize": (10, 10), "layout": None}
-main_figure = Figure(fig_kwargs=figure_kwargs, ncols=2, nrows=2)
-main_figure.please_set_animation_values(frame_inds, "frame")
-# main_figure.please_add_subfigure(vector_figure, 0, 0, rowspan=1, colspan=2)
+main_figure = Figure(fig_kwargs=figure_kwargs)
+generation_data = {"time": times}
+animation_info = {"time": {"method": "value", "initial": times[0]}, "frame": None}
+main_figure.please_set_animation_info(generation_data, animation_info)
+# main_figure.please_set_secondary_animation_keys(["frame"])
 
-# Add plots to the figures
-# main_figure.please_add_plot(plot3d)
-# main_figure.please_add_plot(plot2d, row=1, colspan=2)
-# main_figure.please_add_plot(plot2d_exovista, col=1)
-# main_figure.please_add_plot(plot2d_exovista_pix, col=1)
-# main_figure.please_add_plot(plot2d_helio, col=1)
-# main_figure.please_add_plot(plot2d_sky, col=1)
-main_figure.please_add_plot(plot_image2)
-main_figure.please_add_plot(plot_image_cumu2, row=1, shared_plot_data=plot_image2)
-main_figure.please_add_plot(plot_image1, col=1)
-main_figure.please_add_plot(
-    plot_image_cumu1, col=1, row=1, shared_plot_data=plot_image1
-)
+main_figure.please_add_plot(plot_image1)
+# main_figure.please_add_plot(
+#     plot_image_cumu1, col=1, row=1, shared_plot_data=plot_image1
+# )
+
 
 # Set the animation values and then render
 render_settings = {"animation_duration": 5}
-# main_figure.please_preview([-1])
 main_figure.please_render_video(
-    Path("renders/comp_test.mp4"), render_settings=render_settings
+    Path("renders/new.mp4"), render_settings=render_settings
 )
+# main_figure.please_preview([-1])
 # main_figure.please_render_images(Path("renders/non_static_exposure"))
 # main_figure.please_render_images(Path("renders/exovista"))

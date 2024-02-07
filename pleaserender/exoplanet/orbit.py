@@ -15,6 +15,7 @@ class Orbit(Scatter):
     def __init__(
         self,
         system,
+        draw_key="time",
         plane_2d=None,
         orbit_params=None,
         star_params=None,
@@ -41,6 +42,8 @@ class Orbit(Scatter):
                 Parameters specifying how to plot the orbit fits
 
         """
+        self.draw_key = draw_key
+
         # Set the default orbit params
         # coords can be barycentric or heliocentric
         # propagation can be 'kepler' or 'nbody'
@@ -88,7 +91,7 @@ class Orbit(Scatter):
             default_ax_kwargs.update(kwargs.get("ax_kwargs"))
         kwargs["ax_kwargs"] = default_ax_kwargs
 
-        super().__init__(**kwargs)
+        super().__init__(draw_key, **kwargs)
         # Create a copy of the system so we don't modify the original and we
         # allow for different kwargs for the objects in different plots
         self.system = copy.deepcopy(system)

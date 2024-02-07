@@ -1,4 +1,6 @@
+import copy
 import datetime
+from bisect import bisect_right
 from pathlib import Path
 
 import astropy.units as u
@@ -66,21 +68,30 @@ class Figure:
             "sharey_plot": sharey_plot,
         }
         plot.data_provided = dataset is not None
-        plot.shared_plot_data = shared_plot_data
         if plot.data_provided:
             plot.data = dataset
+        plot.shared_plot_data = shared_plot_data
         self.plots.append(plot)
 
     def please_add_subfigure(self, subfigure, row, col, rowspan=1, colspan=1):
         subfigure.grid_position = (row, col, rowspan, colspan)
         self.subfigures.append(subfigure)
 
-    def please_set_animation_values(self, animation_values, animation_key):
-        if type(animation_values) is Time:
-            animation_values = animation_values.datetime64
-        self.animation_values = animation_values
-        self.animation_key = animation_key
-        self.is_animated = len(animation_values) > 1
+    def please_set_animation_info(self, generation_data, animation_info):
+        # Data necessary for the generate_data calls
+        self.generation_data = generation_data
+
+        default_animation_info = {"method": "index", "initial": 0}
+        self.animation_info = {}
+        for key, value in animation_info.items():
+            self.animation_info[key] = copy.copy(default_animation_info)
+            if value is not None:
+                self.animation_info[key].update(value)
+
+        # Animation order defines how we are going to iterate over the data
+        self.animation_order = []
+        for key in animation_info.keys():
+            self.animation_order.append(key)
 
     def please_preview(self, frame):
         # Create figure (and all subfigures)
@@ -116,13 +127,13 @@ class Figure:
         }
         if render_settings is not None:
             final_render_settings.update(render_settings)
-        final_render_settings["framerate"] = (
-            len(self.animation_values) / final_render_settings["animation_duration"]
-        )
+        # final_render_settings["framerate"] = (
+        #     len(self.animation_values) / final_render_settings["animation_duration"]
+        # )
 
         # Create writer class for the animation
         writer = FFMpegWriter(
-            fps=final_render_settings["framerate"],
+            # fps=final_render_settings["framerate"],
             codec=final_render_settings["codec"],
             bitrate=final_render_settings["bitrate"],
             extra_args=final_render_settings["extra_args"],
@@ -136,23 +147,166 @@ class Figure:
         # Create the figure (and all subfigures)
         self.render_setup()
 
-        anim = FuncAnimation(self.fig, self.render, frames=self.animation_values)
-        anim.save(save_path, **save_settings)
+        with writer.saving(self.fig, save_path, 300):
+            self.render_recursive(self.animation_order[0], writer)
+        # with writer.saving(self.fig, save_path, len(self.animation_values)):
+        # anim = FuncAnimation(self.fig, self.render, frames=self.animation_values)
+        # anim.save(save_path, **save_settings)
 
-        self.pbar.close()
+        # self.pbar.close()
 
     def render_setup(self):
         # Check that all the data has been generated
-        self.generate_data(self.animation_values, self.animation_key)
+        self.generate_data()
 
         # Create figure (and all subfigures)
         self.fig = self.create_figure()
 
         # Create a progress bar
-        self.pbar = tqdm(
-            total=len(self.animation_values) + 1,
-            desc=f"Rendering into {self.save_path}",
-        )
+        # self.pbar = tqdm(
+        #     total=len(self.animation_values) + 1,
+        #     desc=f"Rendering into {self.save_path}",
+        # )
+
+        # Set the initial state
+        self.render_state = {"nframes": 0, "draw_data": {}}
+        for i, animation_key in enumerate(self.animation_order):
+            self.render_state[animation_key] = {}
+            self.render_state[animation_key]["order"] = i
+            self.render_state[animation_key]["method"] = self.animation_info[
+                animation_key
+            ].get("method")
+            initial = self.animation_info[animation_key]["initial"]
+            self.render_state["draw_data"][animation_key] = initial
+            # if self.render_state[animation_key]["method"] == "index":
+            #     self.render_state[animation_key]["current_ind"] = initial
+            # elif self.render_state[animation_key]["method"] == "value":
+            #     self.render_state[animation_key]["current_val"] = initial
+            # else:
+            #     raise NotImplementedError("Only index and value supported")
+
+            # Progress bar for this key
+            if animation_key in self.generation_data.keys():
+                # self.render_state[animation_key]["est_bar"] = False
+                ndata = len(self.generation_data[animation_key])
+                self.render_state[animation_key]["pbar"] = tqdm(
+                    total=ndata,
+                    desc=f"Rendering into {self.save_path}. {animation_key}",
+                )
+            # else:
+            #     self.render_state[animation_key]["pbar"] = None
+            #     self.render_state[animation_key]["est_bar"] = True
+            #     self.render_state[animation_key]["est_max"] = 0
+
+    def render_recursive(self, animation_key, writer):
+        # What is the end condition? all the animation values of the primary key
+        # have been rendered
+        # if self.render_state[animation_key]["method"] == "index":
+        #     self.render_state[animation_key]["current_val"] = 0
+        # else:
+        #     raise NotImplementedError("Only index method is implemented")
+
+        # Get all plots that depend on the current key
+        # Terminates when key_plots is empty
+        drawing_key = True
+        while drawing_key:
+            # Render the current frame
+            self.draw_plots(animation_key)
+            # for plot in key_plots:
+            #     plot.ax.clear()
+            #     plot.draw_plot(
+            #         self.render_state[animation_key]["current_ind"], animation_key
+            #     )
+            #     plot.adjust_settings(
+            #         self.render_state[animation_key]["current_ind"], animation_key
+            #     )
+
+            next_state = self.get_next_state()
+            breakpoint()
+            self.render_state[animation_key]["current_ind"] += 1
+            if self.render_state[animation_key]["pbar"] is not None:
+                self.render_state[animation_key]["pbar"].update(1)
+
+            # Remove plots that have no more frames to render
+            plt.savefig(f"renders/recursive_test/{self.render_state['nframes']:03}.png")
+            writer.grab_frame()
+            self.render_state["nframes"] += 1
+            order = self.render_state[animation_key]["order"]
+            if order < len(self.animation_order) - 1:
+                self.render_recursive(self.animation_order[order + 1], writer)
+
+            # Check the data and see if there are any more frames to render
+
+        # while self.render_state[primary_animation_key]["current_ind"] > len(
+        #     self.animation_values
+        # ):
+        #     return
+
+    def draw_plots(self, animation_key):
+        for plot in self.plots:
+            if animation_key != plot.draw_key:
+                # This plot does not depend on the current animation key
+                continue
+
+            animation_val = self.render_state["draw_data"][animation_key]
+            coords = plot.data.coords[animation_key]
+            if self.render_state[animation_key] == "index":
+                # Check that we haven't exceeded the number of frames
+                if animation_val >= len(coords):
+                    continue
+
+            plot.ax.clear()
+            plot.draw_plot(self.render_state["draw_data"])
+            plot.adjust_settings(
+                self.render_state["draw_data"][animation_key], animation_key
+            )
+        for subfigure in self.subfigures:
+            subfigure.draw_plots(animation_key)
+
+    def get_next_key_val(self, animation_key, next_val=None):
+        key_val = self.render_state["draw_data"][animation_key]
+        for plot in self.plots:
+            if animation_key in plot.data.dims:
+                vals = plot.data.coords[animation_key].values
+                if key_val >= vals[-1]:
+                    # No more from this plot
+                    continue
+                _next_val = vals[bisect_right(vals, key_val)]
+                if next_val is None:
+                    next_val = _next_val
+                elif _next_val < next_val:
+                    next_val = _next_val
+        for subfigure in self.subfigures:
+            next_val = subfigure.get_next_key_val(animation_key, next_val)
+        return next_val
+
+    def get_next_state(self):
+        next_state = {}
+        # Loop through in reverse order
+        for key in self.animation_order[::-1]:
+            # This gets the next value for the current key
+            next_state[key] = self.get_next_key_val(key)
+
+        # Now loop through the keys by order
+
+        return next_state
+
+    # if self.render_state[animation_key]["method"] == "index":
+    #     self.render_state[animation_key]["current_ind"] += 1
+    # else:
+    #     raise NotImplementedError("Only index method is implemented")
+
+    # def get_plots_by_key(self, key, plots=[]):
+    #     for subfigure in self.subfigures:
+    #         plots = subfigure.get_plots_by_key(key, plots)
+
+    #     for plot in self.plots:
+    #         if key in plot.data.dims:
+    #             plots.append(plot)
+    #     return plots
+
+    def render_next_frame(self):
+        pass
 
     def render(self, animation_value):
         """
@@ -168,31 +322,10 @@ class Figure:
 
         # Render plots
         for plot in self.plots:
-            plot.draw_plot(animation_value, self.animation_key)
-            plot.adjust_settings(animation_value, self.animation_key)
+            plot.draw_plot(animation_value, self.primary_animation_key)
+            plot.adjust_settings(animation_value, self.primary_animation_key)
 
-        if "title" not in self.fig_kwargs:
-            if isinstance(animation_value, np.datetime64):
-                title = f"{Time(animation_value).decimalyear:.2f}"
-            elif isinstance(animation_value, u.Quantity):
-                title = (
-                    f"{self.animation_key.replace('_', ' ')} "
-                    "{animation_value.value:.2f}({animation_value.unit})"
-                )
-            elif isinstance(animation_value, float):
-                title = (
-                    f"{self.animation_key.replace('_', ' ')} "
-                    "{animation_value.value:.2f}"
-                )
-            elif isinstance(animation_value, np.int64):
-                title = f"{self.animation_key.replace('_', ' ')} {animation_value}"
-            else:
-                breakpoint()
-                raise NotImplementedError(
-                    f"Type {type(animation_value)} not implemented yet"
-                )
-        else:
-            title = self.fig_kwargs["title"]
+        title = self.create_title(animation_value, self.primary_animation_key)
         self.fig.suptitle(title)
         if hasattr(self, "pbar"):
             self.pbar.update(1)
@@ -207,9 +340,9 @@ class Figure:
         for plot in self.plots:
             plot.ax.clear()
 
-    def generate_data(self, animation_values, animation_key):
+    def generate_data(self):
         for subfigure in self.subfigures:
-            subfigure.generate_data(animation_values, animation_key)
+            subfigure.generate_data()
         for plot in self.plots:
             if plot.shared_plot_data is not None:
                 # Get the data from the other plot
@@ -217,7 +350,8 @@ class Figure:
                     raise ValueError("The shared plot data has not been generated yet.")
                 plot.data = plot.shared_plot_data.data
             else:
-                plot.generate_data(animation_values, animation_key)
+                plot.generate_data(self.generation_data)
+            plot.get_required_keys()
 
     def create_figure(self, parent_fig=None, parent_spec=None, animation_key=None):
         if parent_fig is None:
@@ -228,7 +362,7 @@ class Figure:
             row, col, rowspan, colspan = self.grid_position
             subfigspec = parent_spec[row : row + rowspan, col : col + colspan]
             self.fig = parent_fig.add_subfigure(subfigspec)
-            self.animation_key = animation_key
+            self.primary_animation_key = animation_key
         gridspec = GridSpec(self.nrows, self.ncols, figure=self.fig, **self.gs_kwargs)
 
         # Assign axes to plots
@@ -252,6 +386,30 @@ class Figure:
             subfigure.create_figure(
                 parent_fig=self.fig,
                 parent_spec=gridspec,
-                animation_key=self.animation_key,
+                animation_key=self.primary_animation_key,
             )
         return self.fig
+
+    def create_title(self, animation_value, animation_key):
+        if "title" not in self.fig_kwargs:
+            if isinstance(animation_value, np.datetime64):
+                title = f"{Time(animation_value).decimalyear:.2f}"
+            elif isinstance(animation_value, u.Quantity):
+                title = (
+                    f"{animation_key.replace('_', ' ')} "
+                    "{animation_value.value:.2f}({animation_value.unit})"
+                )
+            elif isinstance(animation_value, float):
+                title = (
+                    f"{animation_key.replace('_', ' ')} " "{animation_value.value:.2f}"
+                )
+            elif isinstance(animation_value, np.int64):
+                title = f"{animation_key.replace('_', ' ')} {animation_value}"
+            else:
+                breakpoint()
+                raise NotImplementedError(
+                    f"Type {type(animation_value)} not implemented yet"
+                )
+        else:
+            title = self.fig_kwargs["title"]
+        return title

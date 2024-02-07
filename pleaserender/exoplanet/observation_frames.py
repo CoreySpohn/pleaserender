@@ -11,15 +11,21 @@ class ObservationFrames(Image):
         self.observation = observation
         self.cumulative = cumulative
 
-    def add_extra_sel_call(self, sel_call, obs, animation_value, animation_key):
-        if self.cumulative:
-            if self.data[animation_key][0].data == animation_value:
-                sel_call["frame"] = animation_value
-            else:
-                sel_call["frame"] = np.arange(animation_value)
-        else:
-            sel_call["frame"] = animation_value
-
+    def add_extra_sel_call(self, sel_call, obs, draw_data):
+        for key in self.valid_animation_keys:
+            in_data = key in self.data.dims
+            if in_data:
+                key_val = draw_data[key]
+                in_draw_data = key in draw_data
+                in_sel_call = key in sel_call
+                if in_draw_data and not in_sel_call:
+                    if self.cumulative:
+                        if self.data[key][0].data == key_val:
+                            sel_call[key] = key_val
+                        else:
+                            sel_call[key] = np.arange(key_val)
+                    else:
+                        sel_call[key] = key_val
         return sel_call
 
     def process_photons(self, photons):

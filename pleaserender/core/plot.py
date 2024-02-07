@@ -9,12 +9,15 @@ import pleaserender.util as util
 class Plot:
     def __init__(
         self,
+        draw_key,
         axis_keys=None,
         plot_kwargs=None,
         ax_kwargs=None,
         animation_kwargs=None,
     ):
         self.ax = None
+        self.draw_key = draw_key
+
         # self.animation_style = animation_style
         self.plot_method = "plot"
 
