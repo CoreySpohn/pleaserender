@@ -17,6 +17,7 @@ class Plot:
     ):
         self.ax = None
         self.draw_key = draw_key
+        self.required_keys = [draw_key]
 
         # self.animation_style = animation_style
         self.plot_method = "plot"

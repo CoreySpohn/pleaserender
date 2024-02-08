@@ -1,5 +1,5 @@
 class RenderState:
-    def __init__(self, required_keys, order, initial_values):
+    def __init__(self, required_keys, base_order, initial_values):
         """
         The RenderState class represents the state of the render process and
         handles comparisons between different states.
@@ -10,7 +10,12 @@ class RenderState:
             initial_values (dict): Initial values for each key.
         """
         self.required_keys = required_keys
-        self.order = order
+        self.order = {}
+        # Sort the order of the required keys based on the base_order
+        for order_int, order_vals in base_order.items():
+            for order_val in order_vals:
+                if order_val in self.required_keys:
+                    self.order[order_int] = order_val
         self.last_frame_values = initial_values
         self.next_frame_values = initial_values.copy()
         self.finished = False
@@ -43,6 +48,41 @@ class RenderState:
             # No keys were updated, so we're done
             self.finished = True
 
+    def is_parent(self, other):
+        """
+        Check if the other RenderState is the parent of the self RenderState.
+        For example, if
+            base_order = {0: ["time"], 1: ["frame"]}
+            self.state = {"time": 5, "frame": 1}
+            other.state = {"time": 5}
+        then other is a parent of self.
+
+        Args:
+            other (RenderState):
+                The other RenderState instance to compare to.
+
+        Returns:
+            bool:
+                True if other is a parent state of self
+        """
+        if self.finished or other.finished:
+            return False
+
+        # Check if any of the required keys match
+        intersecting_keys = set(self.required_keys).intersection(other.required_keys)
+        if not intersecting_keys:
+            # No required keys match, so other is not a parent
+            return False
+
+        for _, key in sorted(self.order.items(), key=lambda x: x[0]):
+            if key in self.required_keys:
+                otherval = other.next_frame_values.get(key)
+                selfval = self.next_frame_values.get(key)
+                if selfval != otherval:
+                    # If any key doesn't match, then other is not a parent
+                    return False
+        return True
+
     def __lt__(self, other):
         """
         Less than comparison for sorting which RenderState instance will be drawn
@@ -63,13 +103,12 @@ class RenderState:
         if not self.finished and other.finished:
             return True
 
-        for key in sorted(self.order.keys(), key=lambda x: self.order[x]):
+        for _, key in sorted(self.order.items(), key=lambda x: x[0]):
             # Keys are checked in order, keep looking until we find a difference
             # between the two states
             if key in self.required_keys and key in other.required_keys:
                 selfval = self.next_frame_values.get(key)
                 otherval = other.next_frame_values.get(key)
-                # return value1 < value2
                 if selfval != otherval:
                     return selfval < otherval
         return False
@@ -88,8 +127,14 @@ class RenderState:
         if self.finished or other.finished:
             return False
 
+        relevant_keys = set(self.required_keys).union(other.required_keys)
         return all(
             self.next_frame_values.get(key) == other.next_frame_values.get(key)
-            for key in self.required_keys
-            if key in other.required_keys
+            for key in relevant_keys
         )
+
+    def __repr__(self):
+        state_repr = ", ".join(
+            f"{key}={value}" for key, value in self.next_frame_values.items()
+        )
+        return f"{self.__class__.__name__}({state_repr}, finished={self.finished})"

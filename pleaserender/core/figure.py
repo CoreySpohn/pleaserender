@@ -1,6 +1,5 @@
 import copy
 import datetime
-from bisect import bisect_right
 from pathlib import Path
 
 import astropy.units as u
@@ -11,6 +10,8 @@ from astropy.time import Time
 from matplotlib.animation import FFMpegWriter, FuncAnimation
 from matplotlib.gridspec import GridSpec
 from tqdm import tqdm
+
+from .render_state import RenderState
 
 
 class Figure:
@@ -148,6 +149,14 @@ class Figure:
         self.render_setup()
         self.plots = self.collect_plots(self.plots)
         self.subfigures = self.collect_subfigures(self.subfigures)
+        times = Time(np.linspace(2000, 2001, 4), format="decimalyear")
+        order = {0: ["time"], 1: ["frame"]}
+        keys = ["time", "frame"]
+        state1 = RenderState(keys, order, {"time": times[0], "frame": 0})
+        state2 = RenderState(keys, order, {"time": times[0], "frame": 1})
+        state3 = RenderState(keys, order, {"time": times[1], "frame": 0})
+        state4 = RenderState(["time"], order, {"time": times[0]})
+        breakpoint()
 
         with writer.saving(self.fig, save_path, 300):
             self.render_recursive(self.animation_order[0], writer)
