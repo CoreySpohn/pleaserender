@@ -146,6 +146,8 @@ class Figure:
 
         # Create the figure (and all subfigures)
         self.render_setup()
+        self.plots = self.collect_plots(self.plots)
+        self.subfigures = self.collect_subfigures(self.subfigures)
 
         with writer.saving(self.fig, save_path, 300):
             self.render_recursive(self.animation_order[0], writer)
@@ -154,6 +156,18 @@ class Figure:
         # anim.save(save_path, **save_settings)
 
         # self.pbar.close()
+
+    def collect_plots(self, plots):
+        for subfigure in self.subfigures:
+            _plots = subfigure.collect_plots(plots)
+            plots.extend(_plots)
+        return plots
+
+    def collect_subfigures(self, subfigures):
+        for subfigure in self.subfigures:
+            _subfigures = subfigure.collect_subfigures(subfigures)
+            subfigures.extend(_subfigures)
+        return subfigures
 
     def render_setup(self):
         # Check that all the data has been generated
