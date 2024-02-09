@@ -15,7 +15,7 @@ class Orbit(Scatter):
     def __init__(
         self,
         system,
-        draw_key="time",
+        gen_data=None,
         plane_2d=None,
         orbit_params=None,
         star_params=None,
@@ -42,8 +42,6 @@ class Orbit(Scatter):
                 Parameters specifying how to plot the orbit fits
 
         """
-        self.draw_key = draw_key
-
         # Set the default orbit params
         # coords can be barycentric or heliocentric
         # propagation can be 'kepler' or 'nbody'
@@ -91,7 +89,7 @@ class Orbit(Scatter):
             default_ax_kwargs.update(kwargs.get("ax_kwargs"))
         kwargs["ax_kwargs"] = default_ax_kwargs
 
-        super().__init__(draw_key, **kwargs)
+        super().__init__(**kwargs)
         # Create a copy of the system so we don't modify the original and we
         # allow for different kwargs for the objects in different plots
         self.system = copy.deepcopy(system)
@@ -140,6 +138,11 @@ class Orbit(Scatter):
         )
         for planet_ind in self.planet_params["planets_to_plot"]:
             self.add_planet_kwargs(planet_ind, self.planet_params["planet_plot_kwargs"])
+
+        self.gen_data = gen_data
+
+    def get_required_keys(self):
+        self.required_keys = ["time"]
 
     # def verify_data(self, dataset, animation_values, animation_key):
     #     """
@@ -203,7 +206,9 @@ class Orbit(Scatter):
 
     #     return dataset
 
-    def draw_plot(self, animation_value, animation_key):
+    def draw_plot(self):
+        animation_key = "time"
+        animation_value = self.state.next_sel["time"]
         n_vals = self.data[animation_key].size
         current_ind = np.argmax(self.data[animation_key].values == animation_value)
         current_view = self.calc_frame_view(current_ind, n_vals)
@@ -272,7 +277,6 @@ class Orbit(Scatter):
             animation_key,
             plot_kwargs=planet.plot_kwargs,
         )
-        self.ax.set_title(f"{planet.plot_kwargs['s']}")
         if self.planet_params.get("add_trail"):
             # Add a dashed line behind the planet
             self.generic_plot(
@@ -394,16 +398,8 @@ class Orbit(Scatter):
             dist_attrs = {"name": system.star.name, "origin": system.origin}
         return dist_attrs
 
-    def generate_data(self, animation_values, animation_key):
-        if animation_key == "time":
-            times = Time(animation_values)
-        else:
-            raise NotImplementedError(
-                (
-                    "WHAT ARE YOU ANIMATING AN ORBIT IN OTHER THAN TIME?"
-                    " Sorry, it's late."
-                )
-            )
+    def generate_data(self):
+        times = self.gen_data["time"]
         self.data = self.system.propagate(
             times,
             prop=self.orbit_params["propagation"],

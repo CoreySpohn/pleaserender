@@ -21,7 +21,7 @@ from pleaserender.exoplanet import Image, ObservationFrames, Orbit
 plt.style.use("dark_background")
 
 # Create some simple data for the plots
-times = Time(np.linspace(2000, 2005, 3), format="decimalyear")
+times = Time(np.linspace(2000, 2005, 10), format="decimalyear")
 
 # Input files
 coronagraph1_dir = Path("input/coronagraphs/LUVOIR-B-VC6_timeseries/")
@@ -50,17 +50,18 @@ obs_scen = {
     "central_wavelength": wavelength,
     "time": times[0],
     "exposure_time": 30 * u.day,
-    "frame_time": 5 * u.day,
+    "frame_time": 10 * u.day,
     "include_star": False,
     "include_planets": True,
     "include_disk": False,
     "bandpass": bandpass,
     "spectral_resolution": 100,
     "return_frames": True,
+    "return_spectrum": True,
     # "separate_sources": False,
     # "wavelength_resolved_flux": False,
-    # "wavelength_resolved_transmission": False,
-    # "time_invariant_planets": False,
+    "wavelength_resolved_transmission": True,
+    "time_invariant_planets": False,
     "detector_pixel_scale": 0.01 * u.arcsec / u.pix,
     "detector_shape": (300, 300),
 }
@@ -71,17 +72,40 @@ obs1 = Observation(coro1, system, observing_scenario, logging_level="WARNING")
 # observing_scenario2 = ObservingScenario(obs_scen2)
 
 
+obs_times = Time(np.linspace(2000, 2005, 1), format="decimalyear")
+generation_data = {"time": obs_times}
 plot_image1 = ObservationFrames(
-    obs1, ax_kwargs={"title": "Current frame"}, imaging_params={"plane": "coro"}
+    obs1,
+    gen_data=generation_data,
+    # ax_kwargs={"title": ""},
+    imaging_params={"plane": "coro"},
 )
-# plot_image_cumu1 = ObservationFrames(
-#     obs1,
-#     cumulative=True,
-#     ax_kwargs={"title": "Cumulative"},
-#     imaging_params={"plane": "coro"},
-# )
+plot_image_wavelength = ObservationFrames(
+    obs1,
+    gen_data=generation_data,
+    cumulative_keys=["spectral_wavelength(nm)"],
+    # ax_kwargs={"title": "Cumulative"},
+    imaging_params={"plane": "coro"},
+)
+plot_image_cumu1 = ObservationFrames(
+    obs1,
+    gen_data=generation_data,
+    cumulative_keys=["frame", "spectral_wavelength(nm)"],
+    # ax_kwargs={"title": "Cumulative"},
+    imaging_params={"plane": "coro"},
+)
+plot3d = Orbit(
+    system,
+    gen_data={"time": times},
+    orbit_params={
+        "ref_frame": "helio-sky",
+        "propagation": "nbody",
+        "unit": u.AU,
+    },
+)
 plot2d = Orbit(
     system,
+    gen_data={"time": times},
     plane_2d="z",
     orbit_params={
         "ref_frame": "helio-sky",
@@ -95,16 +119,17 @@ frame_inds = np.arange(nframes)
 
 # Create a figure and add the plots
 figure_kwargs = {"figsize": (10, 10), "layout": None}
-main_figure = Figure(fig_kwargs=figure_kwargs)
-generation_data = {"time": times}
-animation_info = {"time": {"method": "value", "initial": times[0]}, "frame": None}
-main_figure.please_set_animation_info(generation_data, animation_info)
+main_figure = Figure(fig_kwargs=figure_kwargs, ncols=2, nrows=2)
+# animation_info = {"time": {"method": "value", "initial": times[0]}, "frame": None}
+levels = {0: ["time"], 1: ["frame"], 2: ["spectral_wavelength(nm)"]}
+main_figure.please_set_animation_levels(levels)
 # main_figure.please_set_secondary_animation_keys(["frame"])
 
 main_figure.please_add_plot(plot_image1)
-# main_figure.please_add_plot(
-#     plot_image_cumu1, col=1, row=1, shared_plot_data=plot_image1
-# )
+main_figure.please_add_plot(plot_image_wavelength, col=1, shared_plot_data=plot_image1)
+# main_figure.please_add_plot(plot_image_cumu1, col=2, shared_plot_data=plot_image1)
+main_figure.please_add_plot(plot3d, row=1, col=0)
+main_figure.please_add_plot(plot2d, row=1, col=1)
 
 
 # Set the animation values and then render

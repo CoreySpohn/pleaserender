@@ -13,7 +13,13 @@ from pleaserender.core import Plot
 
 
 class Image(Plot):
-    def __init__(self, observation, draw_key="time", imaging_params=None, **kwargs):
+    def __init__(
+        self,
+        observation,
+        gen_data=None,
+        imaging_params=None,
+        **kwargs,
+    ):
         default_imaging_params = {"object": "img", "plane": "coro"}
         self.imaging_params = default_imaging_params
         if imaging_params is not None:
@@ -25,13 +31,14 @@ class Image(Plot):
                 "x": f"xpix({self.imaging_params['plane']})",
                 "y": f"ypix({self.imaging_params['plane']})",
             }
-        if not kwargs.get("animation_kwargs"):
-            kwargs["animation_kwargs"] = {}
-        if "auto_title" not in kwargs["animation_kwargs"]:
-            kwargs["animation_kwargs"]["auto_title"] = True
+        if not kwargs.get("ax_kwargs"):
+            kwargs["ax_kwargs"] = {}
+        if "auto_title" not in kwargs["ax_kwargs"]:
+            kwargs["ax_kwargs"]["auto_title"] = True
 
-        super().__init__(draw_key, **kwargs)
+        super().__init__(**kwargs)
 
+        self.gen_data = gen_data
         self.observation = observation
         self.system = observation.system
         self.coronagraph = observation.coronagraph
@@ -49,19 +56,23 @@ class Image(Plot):
     #     obs_ds = Observations.run(self, observations=observations)
     #     return obs_ds
 
-    def generate_data(self, generation_data):
+    def generate_data(self):
+        assert self.gen_data is not None, (
+            "The gen_data dictionary must be provided if"
+            " the data is not already provided."
+        )
         times = self.observation.time.reshape(1)
         wavelengths = self.observation.central_wavelength.reshape(1)
-        has_time = "time" in generation_data
-        has_wavelength = "central_wavelength" in generation_data
+        has_time = "time" in self.gen_data
+        has_wavelength = "central_wavelength" in self.gen_data
         assert (has_time and not has_wavelength) or (not has_time and has_wavelength), (
             "The generation_data dictionary must contain either a 'time'"
             " or 'central_wavelength' key."
         )
-        if "time" in generation_data:
-            times = generation_data["time"]
-        elif "central_wavelength" in generation_data:
-            wavelengths = generation_data["central_wavelength"]
+        if "time" in self.gen_data:
+            times = self.gen_data["time"]
+        elif "central_wavelength" in self.gen_data:
+            wavelengths = self.gen_data["central_wavelength"]
         all_obs = Observations(self.observation, times, wavelengths)
         # self.observations = set(all_obs.create_observations())
         self.data = all_obs.run()
@@ -113,24 +124,32 @@ class Image(Plot):
         )
         return obs
 
-    def draw_plot(self, draw_data, plot_kwargs=None):
-        photons = self.get_frame_data(draw_data)
+    def draw_plot(self, plot_kwargs=None):
+        photons = self.get_frame_data()
         if plot_kwargs is None:
             plot_kwargs = self.plot_kwargs
-        self.ax.imshow(photons, origin="lower", cmap="viridis", norm=LogNorm())
+        self.ax.imshow(
+            photons, origin="lower", cmap="viridis", norm=LogNorm(vmin=0, vmax=1e5)
+        )
 
-    def get_frame_data(self, draw_data):
-        if "time" in draw_data.keys():
-            animation_key = "time"
-            animation_value = draw_data["time"]
-        elif "central_wavelength" in draw_data.keys():
-            animation_key = "central_wavelength"
-            animation_value = draw_data["central_wavelength"]
-        obs = self.get_observation_object(animation_value, animation_key)
+    def get_frame_data(self):
+        # draw_data = self.state.next_frame_values
+        # if "time" in draw_data.keys():
+        #     animation_key = "time"
+        #     animation_value = draw_data["time"]
+        # elif "central_wavelength" in draw_data.keys():
+        #     animation_key = "central_wavelength"
+        #     animation_value = draw_data["central_wavelength"]
+        # obs = self.get_observation_object(animation_value, animation_key)
 
-        necessary_dims = self.data.attrs["dist_attrs_for_images"]
-        sel_call = self.create_sel_call(obs, necessary_dims)
-        sel_call = self.add_extra_sel_call(sel_call, obs, draw_data)
+        # necessary_dims = self.data.attrs["dist_attrs_for_images"]
+        # sel_call = self.create_sel_call(obs, necessary_dims)
+        # sel_call = self.add_extra_sel_call(sel_call, obs, draw_data)
+        sel_call = copy.copy(self.state.next_sel)
+        for key, val in sel_call.items():
+            if key in self.cumulative_keys:
+                sel_call[key] = slice(None, val)
+
         base_data = self.data.sel(**sel_call)
         photons = self.process_photons(base_data)
         # photons = self.data.sel(**sel_call)[self.imsel].data
@@ -179,3 +198,16 @@ class Image(Plot):
         self.ax_kwargs["lims"]["y"] = util.calculate_axis_limits_and_ticks(
             *yrange, exact=True
         )
+
+    def auto_set_title(self):
+        title = self.create_auto_title()
+        self.ax.set_title(title[:-2])
+
+    def create_auto_title(self):
+        title = ""
+        for key in self.required_keys:
+            if key not in self.cumulative_keys:
+                val = self.state.next_sel[key]
+                title += util.create_val_str(key, val)
+                title += ", "
+        return title[:-2]

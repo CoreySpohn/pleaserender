@@ -1,26 +1,70 @@
-class RenderState:
-    def __init__(self, required_keys, base_order, initial_values):
+import numpy as np
+
+
+class PlotRenderState:
+    def __init__(self, required_keys, base_levels, plot, parallel_map=None):
         """
-        The RenderState class represents the state of the render process and
-        handles comparisons between different states.
+        The PlotRenderState class represents the state of a Plot in its render
+        process and handles comparisons between different PlotRenderStates.
 
         Args:
             required_keys (list): List of keys this state requires.
-            order (dict): A dictionary mapping keys to their priority order.
+            levels (dict): A dictionary mapping keys to their priority level.
             initial_values (dict): Initial values for each key.
         """
         self.required_keys = required_keys
-        self.order = {}
-        # Sort the order of the required keys based on the base_order
-        for order_int, order_vals in base_order.items():
-            for order_val in order_vals:
-                if order_val in self.required_keys:
-                    self.order[order_int] = order_val
-        self.last_frame_values = initial_values
-        self.next_frame_values = initial_values.copy()
+        self.plot = plot
+        self.levels = {}
+        self.key_levels = {}
+        # Sort the levels of the required keys based on the base_levels
+        for level, level_keys in base_levels.items():
+            for level_key in level_keys:
+                if level_key in self.required_keys:
+                    self.levels[level] = level_key
+                    self.key_levels[level_key] = level
+        # Get the initial values of the coordinates
+        # self.next_frame_values = {}
+        initial_coords = plot.data.coords
+        # for key in self.required_keys:
+        #     first_val = initial_coords[key].values[0]
+        #     self.next_frame_values[key] = first_val
+        # self.last_frame_values = self.next_frame_values.copy()
         self.finished = False
+        key_values = {key: initial_coords[key].values for key in self.required_keys}
+        self.sel_calls = list(self.generate_all_frames(key_values))
+        self.next_sel = self.sel_calls[0]
 
-    def update_next_frame_values(self, coords):
+        if parallel_map is not None:
+            # Parallel state is used to keep track of the state of other plots
+            # that are running in parallel with this one.
+            # parallel_map looks like
+            # {"time": "wavelength"}
+            # which means the 1st time value is drawn on the same
+            # frame as the first "wavelength" value.
+
+            # self.parallel_state = parallel_state
+            # parallel_state.parallel_state = self
+
+            # parallel_map is used to map the required keys of this state
+            # to the required keys of the parallel state.
+            self.parallel_map = {}
+
+            # parallel_values is used to keep track of the values of the current
+            # state that need to be compared to the parallel state.
+            self.parallel_inds = {}
+            for key1, key2 in parallel_map.items():
+                if key1 in self.required_keys:
+                    self.parallel_inds[key1] = 0
+                    self.parallel_map[key1] = key2
+                elif key2 in self.required_keys:
+                    self.parallel_inds[key2] = 0
+                    self.parallel_map[key2] = key1
+                else:
+                    raise ValueError(
+                        f"Neither parallel_map {key1}:{key2} in {self.required_keys}"
+                    )
+
+    def iterate_sel(self):
         """
         Updates the next frame values based on the provided new values.
 
@@ -28,31 +72,72 @@ class RenderState:
             coords (xarray Coordinates):
                 A dictionary of the new values for the next frame.
         """
-        keys_updated = False
-        for key in sorted(self.required_keys, key=lambda x: self.order[x]):
-            current_value = self.next_frame_values[key]
-            available_values = coords[key]
-
-            if current_value in available_values:
-                current_index = available_values.index(current_value)
-                if current_index + 1 < len(available_values):
-                    self.next_frame_values[key] = available_values[current_index + 1]
-                    keys_updated = True
-                    break
-                else:
-                    self.next_frame_values[key] = available_values[0]
-            else:
-                breakpoint()
-
-        if not keys_updated:
-            # No keys were updated, so we're done
+        if self.next_sel == self.sel_calls[-1]:
             self.finished = True
+        else:
+            self.next_sel = self.sel_calls[self.sel_calls.index(self.next_sel) + 1]
+        # keys_updated = False
+        # coords = self.plot.data.coords
+        # current_key_inds = {}
+        # at_last_inds = {}
+        # rev_sorted_keys = sorted(
+        #     self.required_keys, key=lambda x: self.key_levels[x], reverse=True
+        # )
+        # for key in rev_sorted_keys:
+        #     current_value = self.next_frame_values[key]
+        #     key_values = coords[key].values
+
+        #     current_index = np.argwhere(key_values == current_value)[0][0]
+        #     current_key_inds[key] = current_index
+
+        #     if current_index == len(key_values) - 1:
+        #         at_last_inds[key] = True
+        #     else:
+        #         at_last_inds[key] = False
+        #     # current_ind = np.argwhere(key_values == current_value)
+        #     # if current_value == key_values[-1]:
+        #     #     # If the current value is the last value, then we're done
+        #     #     # with this key on this loop
+        #     #     pass
+        #     # else:
+        #     #     # Otherwise, we need to update the value
+        #     #     self.next_frame_values[key] = key_values[current_index + 1]
+        #     #     keys_updated = True
+        # breakpoint()
+        # if all(at_last_inds.values()):
+        #     self.finished = True
+        # else:
+        #     last_key_reset = False
+        #     for i, key in enumerate(rev_sorted_keys):
+        #         key_values = coords[key].values
+        #         if at_last_inds[key]:
+        #             last_key_reset = True
+        #             self.next_frame_values[key] = key_values[0]
+
+        # if not keys_updated:
+        #     # No keys were updated, so we're done
+        #     self.finished = True
+
+    def generate_all_frames(self, values_dict):
+        # Sort keys by their level
+        sorted_keys = sorted(self.key_levels, key=self.key_levels.get)
+
+        def _generate(current_dict, idx):
+            if idx == len(sorted_keys):
+                yield current_dict.copy()  # We've built a complete combination
+            else:
+                key = sorted_keys[idx]
+                for value in values_dict[key]:
+                    current_dict[key] = value
+                    yield from _generate(current_dict, idx + 1)
+
+        return _generate({}, 0)
 
     def is_parent(self, other):
         """
-        Check if the other RenderState is the parent of the self RenderState.
+        Check if the other PlotRenderState is the parent of the self PlotRenderState.
         For example, if
-            base_order = {0: ["time"], 1: ["frame"]}
+            base_levels = {0: ["time"], 1: ["frame"]}
             self.state = {"time": 5, "frame": 1}
             other.state = {"time": 5}
         then other is a parent of self.
@@ -74,10 +159,10 @@ class RenderState:
             # No required keys match, so other is not a parent
             return False
 
-        for _, key in sorted(self.order.items(), key=lambda x: x[0]):
+        for _, key in sorted(self.levels.items(), key=lambda x: x[0]):
             if key in self.required_keys:
-                otherval = other.next_frame_values.get(key)
-                selfval = self.next_frame_values.get(key)
+                otherval = other.next_sel.get(key)
+                selfval = self.next_sel.get(key)
                 if selfval != otherval:
                     # If any key doesn't match, then other is not a parent
                     return False
@@ -95,7 +180,7 @@ class RenderState:
         Returns:
             bool:
                 True if self is considered less than other, based on the
-                defined key order and values.
+                defined key levels and values.
         """
         if self.finished and not other.finished:
             # 'Finished' state is considered greater than any other state
@@ -103,19 +188,19 @@ class RenderState:
         if not self.finished and other.finished:
             return True
 
-        for _, key in sorted(self.order.items(), key=lambda x: x[0]):
-            # Keys are checked in order, keep looking until we find a difference
+        for _, key in sorted(self.levels.items(), key=lambda x: x[0]):
+            # Keys are checked in levels, keep looking until we find a difference
             # between the two states
             if key in self.required_keys and key in other.required_keys:
-                selfval = self.next_frame_values.get(key)
-                otherval = other.next_frame_values.get(key)
+                selfval = self.next_sel.get(key)
+                otherval = other.next_sel.get(key)
                 if selfval != otherval:
                     return selfval < otherval
         return False
 
     def __eq__(self, other):
         """
-        Equal to comparison for checking if two RenderState instances are equal.
+        Equal to comparison for checking if two PlotRenderState instances are equal.
 
         Returns:
             bool:
@@ -129,12 +214,34 @@ class RenderState:
 
         relevant_keys = set(self.required_keys).union(other.required_keys)
         return all(
-            self.next_frame_values.get(key) == other.next_frame_values.get(key)
-            for key in relevant_keys
+            self.next_sel.get(key) == other.next_sel.get(key) for key in relevant_keys
         )
 
     def __repr__(self):
-        state_repr = ", ".join(
-            f"{key}={value}" for key, value in self.next_frame_values.items()
-        )
+        state_repr = ", ".join(f"{key}={value}" for key, value in self.next_sel.items())
         return f"{self.__class__.__name__}({state_repr}, finished={self.finished})"
+
+
+class AnimationRenderState:
+    def __init__(self, levels):
+        """
+        The AnimationRenderState class represents the state of the animation
+        in full, tracking all values used to render the animation. It allows
+        for comparisons between PlotRenderStates that have to do with the state
+        of the animation as a whole.
+
+        Args:
+            required_keys (list): List of keys this state requires.
+            levels (dict): A dictionary mapping keys to their priority level.
+            initial_values (dict): Initial values for each key.
+        """
+        self.levels = levels
+        self.animated_values = {}
+        self.current_level_inds = {}
+        # self.used_values = {key: [] for key in self.levels.keys()}
+        for level, level_keys in self.levels.items():
+            for level_key in level_keys:
+                self.animated_values[level_key] = []
+                self.current_level_inds[level_key] = 0
+
+        self.finished = False

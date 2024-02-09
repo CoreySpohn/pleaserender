@@ -11,8 +11,6 @@ from matplotlib.animation import FFMpegWriter, FuncAnimation
 from matplotlib.gridspec import GridSpec
 from tqdm import tqdm
 
-from .render_state import RenderState
-
 
 class Figure:
     def __init__(self, nrows=1, ncols=1, fig_kwargs=None, gs_kwargs=None):
@@ -78,21 +76,19 @@ class Figure:
         subfigure.grid_position = (row, col, rowspan, colspan)
         self.subfigures.append(subfigure)
 
-    def please_set_animation_info(self, generation_data, animation_info):
-        # Data necessary for the generate_data calls
-        self.generation_data = generation_data
+    def please_set_animation_levels(self, levels):
+        self.levels = levels
+        # default_animation_info = {"method": "index", "initial": 0}
+        # self.animation_info = {}
+        # for key, value in animation_info.items():
+        #     self.animation_info[key] = copy.copy(default_animation_info)
+        #     if value is not None:
+        #         self.animation_info[key].update(value)
 
-        default_animation_info = {"method": "index", "initial": 0}
-        self.animation_info = {}
-        for key, value in animation_info.items():
-            self.animation_info[key] = copy.copy(default_animation_info)
-            if value is not None:
-                self.animation_info[key].update(value)
-
-        # Animation order defines how we are going to iterate over the data
-        self.animation_order = []
-        for key in animation_info.keys():
-            self.animation_order.append(key)
+        # # Animation order defines how we are going to iterate over the data
+        # self.animation_order = []
+        # for key in animation_info.keys():
+        #     self.animation_order.append(key)
 
     def please_preview(self, frame):
         # Create figure (and all subfigures)
@@ -149,17 +145,18 @@ class Figure:
         self.render_setup()
         self.plots = self.collect_plots(self.plots)
         self.subfigures = self.collect_subfigures(self.subfigures)
-        times = Time(np.linspace(2000, 2001, 4), format="decimalyear")
-        order = {0: ["time"], 1: ["frame"]}
-        keys = ["time", "frame"]
-        state1 = RenderState(keys, order, {"time": times[0], "frame": 0})
-        state2 = RenderState(keys, order, {"time": times[0], "frame": 1})
-        state3 = RenderState(keys, order, {"time": times[1], "frame": 0})
-        state4 = RenderState(["time"], order, {"time": times[0]})
-        breakpoint()
+        # times = Time(np.linspace(2000, 2001, 4), format="decimalyear")
+        # levels = {0: ["time"], 1: ["frame"]}
+        # keys = ["time", "frame"]
+
+        # self.state = AnimationRenderState(levels)
+        # state1 = PlotRenderState(keys, levels, {"time": times[0], "frame": 0})
+        # state2 = PlotRenderState(keys, levels, {"time": times[0], "frame": 1})
+        # state3 = PlotRenderState(keys, levels, {"time": times[1], "frame": 0})
+        # state4 = PlotRenderState(["time"], levels, {"time": times[0]})
 
         with writer.saving(self.fig, save_path, 300):
-            self.render_recursive(self.animation_order[0], writer)
+            self.render(writer)
         # with writer.saving(self.fig, save_path, len(self.animation_values)):
         # anim = FuncAnimation(self.fig, self.render, frames=self.animation_values)
         # anim.save(save_path, **save_settings)
@@ -192,36 +189,36 @@ class Figure:
         # )
 
         # Set the initial state
-        self.render_state = {"nframes": 0, "draw_data": {}}
-        for i, animation_key in enumerate(self.animation_order):
-            self.render_state[animation_key] = {}
-            self.render_state[animation_key]["order"] = i
-            self.render_state[animation_key]["method"] = self.animation_info[
-                animation_key
-            ].get("method")
-            initial = self.animation_info[animation_key]["initial"]
-            self.render_state["draw_data"][animation_key] = initial
-            # if self.render_state[animation_key]["method"] == "index":
-            #     self.render_state[animation_key]["current_ind"] = initial
-            # elif self.render_state[animation_key]["method"] == "value":
-            #     self.render_state[animation_key]["current_val"] = initial
-            # else:
-            #     raise NotImplementedError("Only index and value supported")
+        # self.render_state = {"nframes": 0, "draw_data": {}}
+        # for i, animation_key in enumerate(self.animation_order):
+        #     self.render_state[animation_key] = {}
+        #     self.render_state[animation_key]["order"] = i
+        #     self.render_state[animation_key]["method"] = self.animation_info[
+        #         animation_key
+        #     ].get("method")
+        #     initial = self.animation_info[animation_key]["initial"]
+        #     self.render_state["draw_data"][animation_key] = initial
+        #     # if self.render_state[animation_key]["method"] == "index":
+        #     #     self.render_state[animation_key]["current_ind"] = initial
+        #     # elif self.render_state[animation_key]["method"] == "value":
+        #     #     self.render_state[animation_key]["current_val"] = initial
+        #     # else:
+        #     #     raise NotImplementedError("Only index and value supported")
 
-            # Progress bar for this key
-            if animation_key in self.generation_data.keys():
-                # self.render_state[animation_key]["est_bar"] = False
-                ndata = len(self.generation_data[animation_key])
-                self.render_state[animation_key]["pbar"] = tqdm(
-                    total=ndata,
-                    desc=f"Rendering into {self.save_path}. {animation_key}",
-                )
-            # else:
-            #     self.render_state[animation_key]["pbar"] = None
-            #     self.render_state[animation_key]["est_bar"] = True
-            #     self.render_state[animation_key]["est_max"] = 0
+        #     # Progress bar for this key
+        #     if animation_key in self.generation_data.keys():
+        #         # self.render_state[animation_key]["est_bar"] = False
+        #         ndata = len(self.generation_data[animation_key])
+        #         self.render_state[animation_key]["pbar"] = tqdm(
+        #             total=ndata,
+        #             desc=f"Rendering into {self.save_path}. {animation_key}",
+        #         )
+        # else:
+        #     self.render_state[animation_key]["pbar"] = None
+        #     self.render_state[animation_key]["est_bar"] = True
+        #     self.render_state[animation_key]["est_max"] = 0
 
-    def render_recursive(self, animation_key, writer):
+    def render(self, writer):
         # What is the end condition? all the animation values of the primary key
         # have been rendered
         # if self.render_state[animation_key]["method"] == "index":
@@ -231,32 +228,52 @@ class Figure:
 
         # Get all plots that depend on the current key
         # Terminates when key_plots is empty
-        drawing_key = True
-        while drawing_key:
+        all_finished = False
+        states = [plot.state for plot in self.plots]
+        next_state = sorted(states)[0]
+        while not all_finished:
             # Render the current frame
-            self.draw_plots(animation_key)
-            # for plot in key_plots:
-            #     plot.ax.clear()
-            #     plot.draw_plot(
-            #         self.render_state[animation_key]["current_ind"], animation_key
-            #     )
-            #     plot.adjust_settings(
-            #         self.render_state[animation_key]["current_ind"], animation_key
-            #     )
+            next_state.plot.ax.clear()
+            next_state.plot.draw_plot()
 
-            next_state = self.get_next_state()
-            breakpoint()
-            self.render_state[animation_key]["current_ind"] += 1
-            if self.render_state[animation_key]["pbar"] is not None:
-                self.render_state[animation_key]["pbar"].update(1)
+            min_level = min(next_state.levels.keys())
+            min_level_key = next_state.levels[min_level]
+            current_val = next_state.next_sel[min_level_key]
+            next_state.plot.adjust_settings(current_val, min_level_key)
 
-            # Remove plots that have no more frames to render
-            plt.savefig(f"renders/recursive_test/{self.render_state['nframes']:03}.png")
-            writer.grab_frame()
-            self.render_state["nframes"] += 1
-            order = self.render_state[animation_key]["order"]
-            if order < len(self.animation_order) - 1:
-                self.render_recursive(self.animation_order[order + 1], writer)
+            state_order = sorted(states)
+
+            # Check if any states are equal to the state just drawn
+            any_left_to_draw = any(
+                [other_state == state_order[0] for other_state in state_order[1:]]
+            )
+            any_parents_left_to_draw = any(
+                [
+                    state_order[0].is_parent(other_state)
+                    for other_state in state_order[1:]
+                ]
+            )
+
+            # IMPLEMENT PARALLEL STATES
+            if not any_left_to_draw and not any_parents_left_to_draw:
+                # No more frames to render
+                # self.set_title()
+                # for subfigure in self.subfigures:
+                #     subfigure.set_title()
+                print(next_state)
+                writer.grab_frame()
+
+            # Iterate the state we just drew
+            next_state.iterate_sel()
+
+            # Get the next state to draw
+            next_state = sorted(states)[0]
+            all_finished = all([state.finished for state in states])
+
+            # self.render_state["nframes"] += 1
+            # order = self.render_state[animation_key]["order"]
+            # if order < len(self.animation_order) - 1:
+            #     self.render_recursive(self.animation_order[order + 1], writer)
 
             # Check the data and see if there are any more frames to render
 
@@ -286,72 +303,27 @@ class Figure:
         for subfigure in self.subfigures:
             subfigure.draw_plots(animation_key)
 
-    def get_next_key_val(self, animation_key, next_val=None):
-        key_val = self.render_state["draw_data"][animation_key]
-        for plot in self.plots:
-            if animation_key in plot.data.dims:
-                vals = plot.data.coords[animation_key].values
-                if key_val >= vals[-1]:
-                    # No more from this plot
-                    continue
-                _next_val = vals[bisect_right(vals, key_val)]
-                if next_val is None:
-                    next_val = _next_val
-                elif _next_val < next_val:
-                    next_val = _next_val
-        for subfigure in self.subfigures:
-            next_val = subfigure.get_next_key_val(animation_key, next_val)
-        return next_val
+    # def render(self, animation_value):
+    #     """
+    #     Render the figure for the given animation value.
+    #     """
+    #     # Clear previous frame
+    #     self.clear()
 
-    def get_next_state(self):
-        next_state = {}
-        # Loop through in reverse order
-        for key in self.animation_order[::-1]:
-            # This gets the next value for the current key
-            next_state[key] = self.get_next_key_val(key)
-
-        # Now loop through the keys by order
-
-        return next_state
-
-    # if self.render_state[animation_key]["method"] == "index":
-    #     self.render_state[animation_key]["current_ind"] += 1
-    # else:
-    #     raise NotImplementedError("Only index method is implemented")
-
-    # def get_plots_by_key(self, key, plots=[]):
+    #     # Render subfigures first
     #     for subfigure in self.subfigures:
-    #         plots = subfigure.get_plots_by_key(key, plots)
+    #         # Recursive call for subfigures
+    #         subfigure.render(animation_value)
 
+    #     # Render plots
     #     for plot in self.plots:
-    #         if key in plot.data.dims:
-    #             plots.append(plot)
-    #     return plots
+    #         plot.draw_plot(animation_value, self.primary_animation_key)
+    #         plot.adjust_settings(animation_value, self.primary_animation_key)
 
-    def render_next_frame(self):
-        pass
-
-    def render(self, animation_value):
-        """
-        Render the figure for the given animation value.
-        """
-        # Clear previous frame
-        self.clear()
-
-        # Render subfigures first
-        for subfigure in self.subfigures:
-            # Recursive call for subfigures
-            subfigure.render(animation_value)
-
-        # Render plots
-        for plot in self.plots:
-            plot.draw_plot(animation_value, self.primary_animation_key)
-            plot.adjust_settings(animation_value, self.primary_animation_key)
-
-        title = self.create_title(animation_value, self.primary_animation_key)
-        self.fig.suptitle(title)
-        if hasattr(self, "pbar"):
-            self.pbar.update(1)
+    #     title = self.create_title(animation_value, self.primary_animation_key)
+    #     self.fig.suptitle(title)
+    #     if hasattr(self, "pbar"):
+    #         self.pbar.update(1)
 
     def clear(self):
         # Clear plots in the subfigures first
@@ -373,8 +345,9 @@ class Figure:
                     raise ValueError("The shared plot data has not been generated yet.")
                 plot.data = plot.shared_plot_data.data
             else:
-                plot.generate_data(self.generation_data)
+                plot.generate_data()
             plot.get_required_keys()
+            plot.create_render_state(self.levels)
 
     def create_figure(self, parent_fig=None, parent_spec=None, animation_key=None):
         if parent_fig is None:

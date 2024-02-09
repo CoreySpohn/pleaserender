@@ -1,23 +1,25 @@
 import copy
 import inspect
 
+import astropy.units as u
 import numpy as np
+from astropy.time import Time
 
 import pleaserender.util as util
+
+from .render_state import PlotRenderState
 
 
 class Plot:
     def __init__(
         self,
-        draw_key,
         axis_keys=None,
         plot_kwargs=None,
         ax_kwargs=None,
         animation_kwargs=None,
     ):
         self.ax = None
-        self.draw_key = draw_key
-        self.required_keys = [draw_key]
+        self.required_keys = []
 
         # self.animation_style = animation_style
         self.plot_method = "plot"
@@ -263,6 +265,8 @@ class Plot:
                     # assert (
                     #     self.ax_kwargs.get(f"{ax_letter}lim") is None
                     # ), f"lims and {ax_letter}lim cannot both be set."
+        if "auto_title" in kwargs:
+            self.ax.set_title(self.create_auto_title())
 
     def set_lims_and_ticks(self, val0, valf, dval, offset, use_minor=True):
         for ax_letter in self.given_axis_keys:
@@ -330,3 +334,14 @@ class Plot:
             animation_kwargs={"animation_style": "Cumulative"},
             plot_kwargs=projection_trail_kwargs,
         )
+
+    def create_render_state(self, levels):
+        self.state = PlotRenderState(self.required_keys, levels, self)
+
+    def create_auto_title(self):
+        title = ""
+        for key in self.required_keys:
+            val = self.state.next_sel[key]
+            title += util.create_val_str(key, val)
+            title += ", "
+        return title[:-2]

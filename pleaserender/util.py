@@ -1,5 +1,6 @@
 import astropy.units as u
 import numpy as np
+from astropy.time import Time
 
 
 def filter_data(dataset, animation_value, animation_key, animation_style):
@@ -132,3 +133,16 @@ def create_title(title_dict, animation_key):
         else:
             title += f"{key}={val}, "
     return title[:-2]
+
+def create_val_str(key, val):
+    if isinstance(val, np.datetime64):
+        val_str = f"{Time(val).decimalyear:.2f}"
+    elif isinstance(val, u.Quantity):
+        val_str = f"{key.replace('_', ' ')} {val.value:.2f}({val.unit})"
+    elif isinstance(val, float):
+        val_str = f"{key.replace('_', ' ')} {val:.2f}"
+    elif isinstance(val, np.int64):
+        val_str = f"{key.replace('_', ' ')} {val}"
+    else:
+        raise NotImplementedError(f"Type {type(val)} not implemented yet")
+    return val_str
