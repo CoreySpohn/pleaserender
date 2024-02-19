@@ -25,6 +25,9 @@ class Image(Plot):
         if imaging_params is not None:
             self.imaging_params.update(imaging_params)
         self.imsel = f"{self.imaging_params['object']}({self.imaging_params['plane']})"
+        # self.axis_keys = {
+        #     "img": f"{self.imaging_params['object']}({self.imaging_params['plane']})"
+        # }
 
         if kwargs.get("axis_keys") is None:
             kwargs["axis_keys"] = {
@@ -45,36 +48,27 @@ class Image(Plot):
         self.observing_scenario = observation.observing_scenario
         self.plot_method = "imshow"
         self.name = "image"
-        # self.valid_animation_keys = [
-        #     "time",
-        #     "central_wavelength",
-        #     "frame",
-        #     "spectral_wavelength(nm)",
-        # ]
-
-    # def generate_data_old(self, observations):
-    #     obs_ds = Observations.run(self, observations=observations)
-    #     return obs_ds
 
     def generate_data(self):
         assert self.gen_data is not None, (
             "The gen_data dictionary must be provided if"
             " the data is not already provided."
         )
-        times = self.observation.time.reshape(1)
+        times = self.observation.start_time.reshape(1)
         wavelengths = self.observation.central_wavelength.reshape(1)
-        has_time = "time" in self.gen_data
+        has_start_time = "start_time" in self.gen_data
         has_wavelength = "central_wavelength" in self.gen_data
-        assert (has_time and not has_wavelength) or (not has_time and has_wavelength), (
+        assert (has_start_time and not has_wavelength) or (
+            not has_start_time and has_wavelength
+        ), (
             "The generation_data dictionary must contain either a 'time'"
             " or 'central_wavelength' key."
         )
-        if "time" in self.gen_data:
-            times = self.gen_data["time"]
+        if "start_time" in self.gen_data:
+            times = self.gen_data["start_time"]
         elif "central_wavelength" in self.gen_data:
             wavelengths = self.gen_data["central_wavelength"]
         all_obs = Observations(self.observation, times, wavelengths)
-        # self.observations = set(all_obs.create_observations())
         self.data = all_obs.run()
 
     def get_required_keys(self):
@@ -83,14 +77,22 @@ class Image(Plot):
         """
         self.get_required_keys = []
         all_possible_keys = [
+            "start_time",
             "time",
             "central_wavelength",
-            "frame",
             "spectral_wavelength(nm)",
         ]
         for key in all_possible_keys:
             if key in self.data.dims:
                 self.required_keys.append(key)
+        sum_time = (
+            "time" in self.access_kwargs["sum_keys"]
+            and "start_time" in self.required_keys
+        )
+        if "start_time" in self.required_keys and "time" in self.required_keys:
+            self.skipna = True
+        else:
+            self.skipna = False
 
     def compile_necessary_info(self, animation_values, animation_key, plot_calls):
         base_observation = Observation(
@@ -99,7 +101,7 @@ class Image(Plot):
             self.observing_scenario,
             logging_level="WARNING",
         )
-        if animation_key == "time":
+        if animation_key == "start_time":
             times = Time(animation_values)
             wavelengths = base_observation.central_wavelength.reshape(1)
         elif animation_key == "central_wavelength":
@@ -115,8 +117,8 @@ class Image(Plot):
 
     def get_observation_object(self, animation_value, animation_key):
         obs_scen = copy.deepcopy(self.observing_scenario)
-        if animation_key == "time":
-            obs_scen.scenario["time"] = Time(animation_value)
+        if animation_key == "start_time":
+            obs_scen.scenario["start_time"] = Time(animation_value)
         elif animation_key == "central_wavelength":
             obs_scen.scenario["central_wavelength"] = animation_value
         obs = Observation(
@@ -125,34 +127,63 @@ class Image(Plot):
         return obs
 
     def draw_plot(self, plot_kwargs=None):
-        photons = self.get_frame_data()
+        # photons = self.get_frame_data()
         if plot_kwargs is None:
             plot_kwargs = self.plot_kwargs
+        data = self.get_plot_data()
         self.ax.imshow(
-            photons, origin="lower", cmap="viridis", norm=LogNorm(vmin=0, vmax=1e5)
+            data, origin="lower", cmap="viridis", norm=LogNorm(vmin=0, vmax=1e5)
         )
 
+    def get_plot_data(self, context=None):
+        """
+        Method to get the data required to plot. Not implemented in the core classes.
+        """
+        sel = self.state.context_sel(context)
+        plot_data = self.data.sel(**sel)
+
+        # Sum over keys if necessary
+        for key in self.access_kwargs["sum_keys"]:
+            if key in plot_data.dims and len(plot_data[key].shape) > 0:
+                plot_data = plot_data.sum(dim=key, skipna=self.skipna)
+        return plot_data[self.imsel].data
+
+    def check_valid_context(self, fig_context):
+        context = self.state.extract_plot_context(fig_context)
+        for key, val in context.items():
+            if val not in self.data[key]:
+                return False
+        plot_data = self.get_plot_data(context)
+        # valid = np.all(~np.isnan(plot_data))
+        valid = np.any(~np.isnan(plot_data))
+        # if not valid:
+        #     breakpoint()
+        # try:
+        #     other = self.state.context["time"] == self.state.key_values["time"][-1]
+        # except:
+        #     other = False
+        # if other and valid:
+        #     breakpoint()
+        # print(f"Image: {valid}")
+        return valid
+
+    def access_data(self, data):
+        return data[self.imsel].data
+
+    # def get_plot_data(self, data=None, axis_keys=None):
+    #     """
+    #     Method to get the data required to plot. Not implemented in the core classes.
+    #     """
+    #     data = self.state.context_data()
+
+    #     data = self.get_frame_data()
+    #     return [data]
+
     def get_frame_data(self):
-        # draw_data = self.state.next_frame_values
-        # if "time" in draw_data.keys():
-        #     animation_key = "time"
-        #     animation_value = draw_data["time"]
-        # elif "central_wavelength" in draw_data.keys():
-        #     animation_key = "central_wavelength"
-        #     animation_value = draw_data["central_wavelength"]
-        # obs = self.get_observation_object(animation_value, animation_key)
-
-        # necessary_dims = self.data.attrs["dist_attrs_for_images"]
-        # sel_call = self.create_sel_call(obs, necessary_dims)
-        # sel_call = self.add_extra_sel_call(sel_call, obs, draw_data)
-        sel_call = copy.copy(self.state.next_sel)
-        for key, val in sel_call.items():
-            if key in self.cumulative_keys:
-                sel_call[key] = slice(None, val)
-
-        base_data = self.data.sel(**sel_call)
-        photons = self.process_photons(base_data)
-        # photons = self.data.sel(**sel_call)[self.imsel].data
+        # sel_call = copy.copy(self.state.context)
+        # base_data = self.data.sel(**sel_call)
+        base_data = self.state.context_data()
+        photons = self.access_data(base_data)
         return photons
 
     def create_sel_call(self, obs, necessary_dims):
@@ -198,16 +229,3 @@ class Image(Plot):
         self.ax_kwargs["lims"]["y"] = util.calculate_axis_limits_and_ticks(
             *yrange, exact=True
         )
-
-    def auto_set_title(self):
-        title = self.create_auto_title()
-        self.ax.set_title(title[:-2])
-
-    def create_auto_title(self):
-        title = ""
-        for key in self.required_keys:
-            if key not in self.cumulative_keys:
-                val = self.state.next_sel[key]
-                title += util.create_val_str(key, val)
-                title += ", "
-        return title[:-2]

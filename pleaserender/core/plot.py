@@ -17,6 +17,8 @@ class Plot:
         plot_kwargs=None,
         ax_kwargs=None,
         animation_kwargs=None,
+        render_state_kwargs=None,
+        access_kwargs=None,
     ):
         self.ax = None
         self.required_keys = []
@@ -63,29 +65,45 @@ class Plot:
         # To rotate in azim, elevation, or roll provide a dictionary such as
         # {'rotate': {'azim': (15, 75)}} to rotate from 15 to 75 degrees in azim.
         default_animation_kwargs = {
-            "animation_style": "Cumulative",
             "rotate": None,
             "elev": 30,
             "azim": 45,
             "roll": 0,
+            "title_key": None,
         }
         self.animation_kwargs = default_animation_kwargs
         if animation_kwargs is not None:
             self.animation_kwargs.update(animation_kwargs)
 
-    def draw_plot(self, animation_value, animation_key, plot_kwargs=None):
+        default_render_state_kwargs = {}
+        self.render_state_kwargs = default_render_state_kwargs
+        if render_state_kwargs is not None:
+            self.render_state_kwargs.update(render_state_kwargs)
+
+        default_access_kwargs = {"sum_keys": []}
+        self.access_kwargs = default_access_kwargs
+        if access_kwargs is not None:
+            self.access_kwargs.update(access_kwargs)
+
+        self.base_sel = {}
+
+    def render(self, context):
+        # Get the necessary values from the context
+        self.state.process_context(context)
+        if self.state.redraw:
+            self.ax.clear()
+            self.draw_plot()
+        self.adjust_settings()
+
+    def draw_plot(self, plot_kwargs=None):
         """
         Method to draw the plot. Nothing past the generic plotting in this base class
         """
-        self.generic_plot(
-            self.data, animation_value, animation_key, plot_kwargs=plot_kwargs
-        )
+        self.generic_plot(self.data, plot_kwargs=plot_kwargs)
 
     def generic_plot(
         self,
-        data,
-        animation_value,
-        animation_key,
+        data=None,
         axis_keys=None,
         plot_method=None,
         plot_kwargs=None,
@@ -98,26 +116,45 @@ class Plot:
         plot_method = getattr(self.ax, plot_method)
         if animation_kwargs is None:
             animation_kwargs = self.animation_kwargs
-        data = util.filter_data(
-            data,
-            animation_value,
-            animation_key,
-            animation_kwargs["animation_style"],
-        )
+        # data = self.state.context_data()
         ax_keys = self.given_axis_keys
         if axis_keys is not None:
             ax_keys = axis_keys
 
-        # Allows for 2 and 3 dimensional data with the same call
-        separated_data = [data[self.axis_keys[axis_key]].values for axis_key in ax_keys]
+        if data is None:
+            sel = self.state.context_sel()
+            data = self.data.sel(**sel)
+            plot_data = self.get_plot_data()
+        else:
+            # Allows for 2 and 3 dimensional data with the same call
+            plot_data = [data[self.axis_keys[axis_key]].values for axis_key in ax_keys]
         if plot_kwargs is None:
             plot_kwargs = self.plot_kwargs
-        plot_method(*separated_data, **plot_kwargs)
+        plot_method(*plot_data, **plot_kwargs)
 
-    def adjust_settings(self, animation_value, animation_key):
-        self.generic_settings(animation_value, animation_key)
+    def get_plot_data(self, context=None):
+        """
+        Method to get the data required to plot.
+        """
+        sel = self.state.context_sel(context)
+        data = self.data.sel(**sel)
 
-    def generic_settings(self, animation_value, animation_key):
+        # Allows for 2 and 3 dimensional data with the same call
+        separated_data = [
+            data[self.axis_keys[axis_key]].values for axis_key in self.given_axis_keys
+        ]
+        return separated_data
+
+    def check_valid_context(self, fig_context):
+        context = self.state.extract_plot_context(fig_context)
+        plot_data = self.get_plot_data(context)
+        valid = [np.all(~np.isnan(data)) for data in plot_data]
+        return np.all(valid)
+
+    def adjust_settings(self):
+        self.generic_settings()
+
+    def generic_settings(self):
         # Evaulate any f-strings provided in ax_kwargs
         original_kwargs = {}
         for key, val in self.ax_kwargs.items():
@@ -143,9 +180,10 @@ class Plot:
         self.ax_kwargs.update(original_kwargs)
 
         if self.is_3d:
-            n_vals = self.data[animation_key].size
+            n_vals = self.data[self.animation_key].size
             current_index = np.argmax(
-                self.data[animation_key].values == animation_value
+                self.data[self.animation_key].values
+                == self.state.context[self.animation_key]
             )
             frame_view = self.calc_frame_view(current_index, n_vals)
             self.ax.view_init(**frame_view)
@@ -191,7 +229,7 @@ class Plot:
         all_values_present = np.isin(animation_values, animation_data).all()
         return all_values_present
 
-    def generate_data(self, animation_values, animation_key):
+    def generate_data(self):
         """
         Method to generate all the data required. Not implemented in the
         core classes.
@@ -207,7 +245,7 @@ class Plot:
         Currently sets the axis limits.
         """
         # Set the axis limits if they are not specified
-        self.handle_axes_limits_and_ticks(self.ax_kwargs.get("equal_lims"))
+        self.handle_axes_limits_and_ticks(equal=self.ax_kwargs.get("equal_lims"))
 
     def handle_axes_limits_and_ticks(self, data=None, equal=False):
         necessary_axes = ["x", "y"]
@@ -247,8 +285,8 @@ class Plot:
         else:
             for ax_letter in necessary_axes:
                 axlims = util.calculate_axis_limits_and_ticks(
-                    data[self.axis_keys.get(ax_letter)].min(),
-                    data[self.axis_keys.get(ax_letter)].max(),
+                    data[self.axis_keys.get(ax_letter)].values.min(),
+                    data[self.axis_keys.get(ax_letter)].values.max(),
                 )
 
                 self.ax_kwargs["lims"][ax_letter] = axlims
@@ -261,21 +299,21 @@ class Plot:
                 if self.ax_kwargs.get(f"{ax_letter}lim") is None:
                     axlims = kwargs["lims"][ax_letter]
                     use_minor = not self.is_3d
-                    self.set_lims_and_ticks(*axlims, use_minor=use_minor)
+                    self.set_lims_and_ticks(*axlims, ax_letter, use_minor=use_minor)
                     # assert (
                     #     self.ax_kwargs.get(f"{ax_letter}lim") is None
                     # ), f"lims and {ax_letter}lim cannot both be set."
-        if "auto_title" in kwargs:
+        if self.animation_kwargs.get("title_key") is not None:
             self.ax.set_title(self.create_auto_title())
 
-    def set_lims_and_ticks(self, val0, valf, dval, offset, use_minor=True):
-        for ax_letter in self.given_axis_keys:
-            set_lim = getattr(self.ax, f"set_{ax_letter}lim")
-            set_ticks = getattr(self.ax, f"set_{ax_letter}ticks")
-            set_lim([val0 - offset, valf + offset])
-            set_ticks(np.arange(val0, valf + dval / 4, dval))
-            if use_minor:
-                set_ticks(np.arange(val0 + dval / 2, valf + dval / 4, dval), minor=True)
+    def set_lims_and_ticks(self, val0, valf, dval, offset, ax_letter, use_minor=True):
+        # for ax_letter in self.given_axis_keys:
+        set_lim = getattr(self.ax, f"set_{ax_letter}lim")
+        set_ticks = getattr(self.ax, f"set_{ax_letter}ticks")
+        set_lim([val0 - offset, valf + offset])
+        set_ticks(np.arange(val0, valf + dval / 4, dval))
+        if use_minor:
+            set_ticks(np.arange(val0 + dval / 2, valf + dval / 4, dval), minor=True)
 
     def project_point(
         self,
@@ -336,12 +374,12 @@ class Plot:
         )
 
     def create_render_state(self, levels):
-        self.state = PlotRenderState(self.required_keys, levels, self)
+        self.state = PlotRenderState(
+            self.required_keys, levels, self, **self.render_state_kwargs
+        )
 
     def create_auto_title(self):
-        title = ""
-        for key in self.required_keys:
-            val = self.state.next_sel[key]
-            title += util.create_val_str(key, val)
-            title += ", "
-        return title[:-2]
+        key = self.animation_kwargs["title_key"]
+        val = self.state.context[key]
+        title = util.create_val_str(key, val)
+        return title

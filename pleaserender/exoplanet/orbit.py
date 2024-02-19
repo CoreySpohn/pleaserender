@@ -141,6 +141,12 @@ class Orbit(Scatter):
 
         self.gen_data = gen_data
 
+        self.base_sel = {
+            "ref_frame": self.orbit_params["ref_frame"],
+            "prop": self.orbit_params["propagation"],
+        }
+        self.animation_key = "time"
+
     def get_required_keys(self):
         self.required_keys = ["time"]
 
@@ -208,7 +214,7 @@ class Orbit(Scatter):
 
     def draw_plot(self):
         animation_key = "time"
-        animation_value = self.state.next_sel["time"]
+        animation_value = self.state.context["time"]
         n_vals = self.data[animation_key].size
         current_ind = np.argmax(self.data[animation_key].values == animation_value)
         current_view = self.calc_frame_view(current_ind, n_vals)
@@ -245,44 +251,34 @@ class Orbit(Scatter):
 
             # Finally, plot the planets
             for planet_ind in self.planet_params["planets_to_plot"]:
-                self.draw_planet(planet_ind, animation_value, animation_key)
+                self.draw_planet(planet_ind)
 
     def get_planet_da(self, planet_ind):
         # dist_attrs = self.get_dist_attrs(self.system, lists=False)
         planet_dataset = self.data.sel(
-            object="planet",
-            index=planet_ind,
-            ref_frame=self.orbit_params["ref_frame"],
-            prop=self.orbit_params["propagation"],
-            # **dist_attrs,
+            object="planet", index=planet_ind, **self.base_sel
         )
+        # ref_frame=self.orbit_params["ref_frame"],
+        # prop=self.orbit_params["propagation"],
+        # **dist_attrs,
         return planet_dataset
 
     def get_system_da(self):
-        system_dataset = self.data.sel(
-            object="planet",
-            ref_frame=self.orbit_params["ref_frame"],
-            prop=self.orbit_params["propagation"],
-        )
+        system_dataset = self.data.sel(object="planet", **self.base_sel)
+        # ref_frame=self.orbit_params["ref_frame"],
+        # prop=self.orbit_params["propagation"],
         return system_dataset
 
-    def draw_planet(self, planet_ind, animation_value, animation_key):
+    def draw_planet(self, planet_ind):
         planet = self.system.planets[planet_ind]
         planet_dataset = self.get_planet_da(planet_ind)
 
         # Plot the planet
-        self.generic_plot(
-            planet_dataset,
-            animation_value,
-            animation_key,
-            plot_kwargs=planet.plot_kwargs,
-        )
+        self.generic_plot(planet_dataset, plot_kwargs=planet.plot_kwargs)
         if self.planet_params.get("add_trail"):
             # Add a dashed line behind the planet
             self.generic_plot(
                 planet_dataset,
-                animation_value,
-                animation_key,
                 plot_method="plot",
                 animation_kwargs={"animation_style": "Cumulative"},
                 plot_kwargs={"color": "w", "linestyle": "dashed", "alpha": 0.5},
@@ -293,14 +289,10 @@ class Orbit(Scatter):
             trail_projects = self.planet_params["project"].get("trail")
             if point_projects is not None:
                 for ax_letter in point_projects:
-                    self.project_trail(
-                        planet_dataset, animation_value, animation_key, ax_letter
-                    )
+                    self.project_trail(planet_dataset, ax_letter)
             if trail_projects is not None:
                 for ax_letter in trail_projects:
-                    self.project_trail(
-                        planet_dataset, animation_value, animation_key, ax_letter
-                    )
+                    self.project_trail(planet_dataset, ax_letter)
 
     def convert_units(self):
         self.data = misc.add_units(
@@ -353,8 +345,8 @@ class Orbit(Scatter):
         base_s = scipy.interpolate.interp1d(masses, sizes)(mass_to_use)
         return base_s
 
-    def adjust_settings(self, animation_value, animation_key):
-        super().generic_settings(animation_value, animation_key)
+    def adjust_settings(self):
+        super().generic_settings()
         if self.is_3d:
             self.darken_3d_background()
 
@@ -370,6 +362,25 @@ class Orbit(Scatter):
         self.handle_axes_limits_and_ticks(
             data=data, equal=self.ax_kwargs.get("equal_lims")
         )
+
+    def check_valid_context(self, fig_context):
+        # print("FIX THIS COREY")
+        context = self.state.context_sel(fig_context)
+        # plot_data = self.get_plot_data(context)
+        valid = fig_context["time"] in self.data["time"]
+        # base_data = self.data.sel(**context)
+        # # Check the planets
+        # for planet_ind in self.planet_params["planets_to_plot"]:
+        #     # planet_data = self.get_planet_da(planet_ind)
+        #     planet_data = base_data.sel(object="planet", index=planet_ind)
+        #     breakpoint()
+        #     valid = [np.all(~np.isnan(data)) for data in planet_data]
+        #     if not np.all(valid):
+        #         return False
+        # context = self.state.extract_plot_context(fig_context)
+        # plot_data = self.get_plot_data(context)
+        # valid = [np.all(~np.isnan(data)) for data in plot_data]
+        return valid
 
     def compile_necessary_info(self, animation_values, animation_key, plot_calls):
         data_args = (

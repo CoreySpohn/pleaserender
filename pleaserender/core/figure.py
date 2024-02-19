@@ -31,6 +31,7 @@ class Figure:
 
         # List to store plots
         self.plots = []
+        self.primary_plots = []
 
         # List to store subfigures
         self.subfigures = []
@@ -53,6 +54,7 @@ class Figure:
         sharey_plot=None,
         shared_plot_data=None,
         dataset=None,
+        primary=True,
     ):
         plot_type = plot.__class__.__name__
         if plot_type not in self.plots_by_type:
@@ -71,6 +73,8 @@ class Figure:
             plot.data = dataset
         plot.shared_plot_data = shared_plot_data
         self.plots.append(plot)
+        if primary:
+            self.primary_plots.append(plot)
 
     def please_add_subfigure(self, subfigure, row, col, rowspan=1, colspan=1):
         subfigure.grid_position = (row, col, rowspan, colspan)
@@ -78,6 +82,10 @@ class Figure:
 
     def please_set_animation_levels(self, levels):
         self.levels = levels
+        self.key_levels = {}
+        for level, level_keys in levels.items():
+            for level_key in level_keys:
+                self.key_levels[level_key] = level
         # default_animation_info = {"method": "index", "initial": 0}
         # self.animation_info = {}
         # for key, value in animation_info.items():
@@ -121,6 +129,7 @@ class Figure:
             "bitrate": -1,
             "extra_args": ["-vcodec", "libx264", "-pix_fmt", "yuv420p"],
             "img_dpi": 300,
+            "framerate": 30,
         }
         if render_settings is not None:
             final_render_settings.update(render_settings)
@@ -130,7 +139,7 @@ class Figure:
 
         # Create writer class for the animation
         writer = FFMpegWriter(
-            # fps=final_render_settings["framerate"],
+            fps=final_render_settings["framerate"],
             codec=final_render_settings["codec"],
             bitrate=final_render_settings["bitrate"],
             extra_args=final_render_settings["extra_args"],
@@ -219,111 +228,122 @@ class Figure:
         #     self.render_state[animation_key]["est_max"] = 0
 
     def render(self, writer):
-        # What is the end condition? all the animation values of the primary key
-        # have been rendered
-        # if self.render_state[animation_key]["method"] == "index":
-        #     self.render_state[animation_key]["current_val"] = 0
-        # else:
-        #     raise NotImplementedError("Only index method is implemented")
-
-        # Get all plots that depend on the current key
-        # Terminates when key_plots is empty
-        all_finished = False
+        # Setting up a loop to render the frames until all are finished
         states = [plot.state for plot in self.plots]
-        next_state = sorted(states)[0]
-        while not all_finished:
+        self.finished = False
+        # next_state = sorted(states)[0]
+        # Context refers to the current state of the animation
+        # for each level value
+        while True:
+            self.context = self.get_next_context()
+            # print(self.context)
+            if self.finished:
+                return
+
+            for plot in self.plots:
+                plot.render(self.context)
+            writer.grab_frame()
+            # print("\n")
+
             # Render the current frame
-            next_state.plot.ax.clear()
-            next_state.plot.draw_plot()
+            # next_state.plot.ax.clear()
+            # next_state.plot.draw_plot()
 
-            min_level = min(next_state.levels.keys())
-            min_level_key = next_state.levels[min_level]
-            current_val = next_state.next_sel[min_level_key]
-            next_state.plot.adjust_settings(current_val, min_level_key)
+            # min_level = min(next_state.levels.keys())
+            # min_level_key = next_state.levels[min_level]
+            # current_val = next_state.next_sel[min_level_key]
+            # next_state.plot.adjust_settings(current_val, min_level_key)
 
-            state_order = sorted(states)
-
+            # state_order = sorted(states)
             # Check if any states are equal to the state just drawn
-            any_left_to_draw = any(
-                [other_state == state_order[0] for other_state in state_order[1:]]
-            )
-            any_parents_left_to_draw = any(
-                [
-                    state_order[0].is_parent(other_state)
-                    for other_state in state_order[1:]
-                ]
-            )
-
-            # IMPLEMENT PARALLEL STATES
-            if not any_left_to_draw and not any_parents_left_to_draw:
-                # No more frames to render
-                # self.set_title()
-                # for subfigure in self.subfigures:
-                #     subfigure.set_title()
-                print(next_state)
-                writer.grab_frame()
+            # any_left_to_draw = any(
+            #     [other_state == state_order[0] for other_state in state_order[1:]]
+            # )
+            # any_parents_left_to_draw = any(
+            #     [
+            #         state_order[0].is_parent(other_state)
+            #         for other_state in state_order[1:]
+            #     ]
+            # )
 
             # Iterate the state we just drew
-            next_state.iterate_sel()
+            # next_state.iterate_sel()
+            # print(next_state)
 
             # Get the next state to draw
-            next_state = sorted(states)[0]
-            all_finished = all([state.finished for state in states])
+            # next_state = sorted(states)[0]
+            # all_finished = all([state.finished for state in states])
 
-            # self.render_state["nframes"] += 1
-            # order = self.render_state[animation_key]["order"]
-            # if order < len(self.animation_order) - 1:
-            #     self.render_recursive(self.animation_order[order + 1], writer)
+    def get_next_context(self):
+        all_key_vals, ignored_keys = self.generate_all_key_vals()
+        if not hasattr(self, "context"):
+            # Dynamically generate all_key_vals and initialize context if it's
+            # the first call
+            self.context = self.get_first_context(all_key_vals)
+            if self.check_valid_context_for_any_plot(self.context):
+                # First context is valid, return
+                return self.context
 
-            # Check the data and see if there are any more frames to render
-
-        # while self.render_state[primary_animation_key]["current_ind"] > len(
-        #     self.animation_values
-        # ):
-        #     return
-
-    def draw_plots(self, animation_key):
-        for plot in self.plots:
-            if animation_key != plot.draw_key:
-                # This plot does not depend on the current animation key
-                continue
-
-            animation_val = self.render_state["draw_data"][animation_key]
-            coords = plot.data.coords[animation_key]
-            if self.render_state[animation_key] == "index":
-                # Check that we haven't exceeded the number of frames
-                if animation_val >= len(coords):
+        first_context = self.get_first_context(all_key_vals)
+        # Save the original context to detect a full cycle
+        while True:
+            for _, keys in sorted(self.levels.items(), reverse=True):
+                for key in keys:
+                    if key in ignored_keys:
+                        # Skip iteration for keys with no values
+                        continue
+                    current_index = all_key_vals[key].index(self.context[key])
+                    if current_index + 1 < len(all_key_vals[key]):
+                        key_val = all_key_vals[key][current_index + 1]
+                        self.context[key] = key_val
+                        print(f"Checking {key}:{key_val} from Figure")
+                        if self.check_valid_context_for_any_plot(self.context):
+                            # Valid context found
+                            return self.context
+                        # Break out of the inner loop to reset context in outer
+                        # loop if needed
+                        break
+                    else:
+                        self.context[key] = all_key_vals[key][0]
+                else:
+                    # Continue if the inner loop wasn't broken
                     continue
+                # Inner loop was broken, break the outer
+                break
 
-            plot.ax.clear()
-            plot.draw_plot(self.render_state["draw_data"])
-            plot.adjust_settings(
-                self.render_state["draw_data"][animation_key], animation_key
-            )
-        for subfigure in self.subfigures:
-            subfigure.draw_plots(animation_key)
+            # Check if we have looped back to the original context without
+            # finding a valid one
+            if self.context == first_context:
+                self.finished = True
+                return
+                # raise StopIteration("All possible contexts have been exhausted.")
 
-    # def render(self, animation_value):
-    #     """
-    #     Render the figure for the given animation value.
-    #     """
-    #     # Clear previous frame
-    #     self.clear()
+    def generate_all_key_vals(self):
+        all_key_vals = {}
+        ignored_keys = []
+        for _, level_keys in self.levels.items():
+            for level_key in level_keys:
+                _key_vals = set()
+                for plot in self.plots:
+                    if level_key in plot.required_keys:
+                        _key_vals.update(plot.state.key_values[level_key])
+                if len(_key_vals) == 0:
+                    ignored_keys.append(level_key)
+                else:
+                    all_key_vals[level_key] = sorted(_key_vals)
+        return all_key_vals, ignored_keys
 
-    #     # Render subfigures first
-    #     for subfigure in self.subfigures:
-    #         # Recursive call for subfigures
-    #         subfigure.render(animation_value)
+    def get_first_context(self, all_key_vals):
+        # Initialize context with the first values from the dynamically
+        # generated all_key_vals
+        context = {k: v[0] for k, v in all_key_vals.items()}
+        return context
 
-    #     # Render plots
-    #     for plot in self.plots:
-    #         plot.draw_plot(animation_value, self.primary_animation_key)
-    #         plot.adjust_settings(animation_value, self.primary_animation_key)
-
-    #     title = self.create_title(animation_value, self.primary_animation_key)
-    #     self.fig.suptitle(title)
-    #     if hasattr(self, "pbar"):
-    #         self.pbar.update(1)
+    def check_valid_context_for_any_plot(self, context):
+        # Check if the context is valid for at least one plot
+        valid = any(plot.check_valid_context(context) for plot in self.primary_plots)
+        # print(f"Figure: {valid}")
+        return valid
 
     def clear(self):
         # Clear plots in the subfigures first

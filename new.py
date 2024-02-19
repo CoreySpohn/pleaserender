@@ -7,16 +7,15 @@ import numpy as np
 import xarray as xr
 from astropy.time import Time
 from coronagraphoto import (Coronagraph, Observation, Observations,
-                            ObservingScenario, render_engine)
+                            ObservingScenario)
 from exoverses.base import Planet, Star, System
 from exoverses.exovista import ExovistaSystem
-from synphot import SourceSpectrum, SpectralElement
-from synphot.models import (BlackBodyNorm1D, Box1D, Empirical1D, Gaussian1D,
-                            GaussianFlux1D)
+from synphot import SpectralElement
+from synphot.models import Gaussian1D
 from tqdm import main
 
 from pleaserender.core import Figure, Plot, Scatter
-from pleaserender.exoplanet import Image, ObservationFrames, Orbit
+from pleaserender.exoplanet import Bandpass, Image, ObservationFrames, Orbit
 
 plt.style.use("dark_background")
 
@@ -48,14 +47,15 @@ bandpass = SpectralElement(
 obs_scen = {
     "diameter": 8 * u.m,
     "central_wavelength": wavelength,
-    "time": times[0],
+    "start_time": times[0],
     "exposure_time": 30 * u.day,
-    "frame_time": 10 * u.day,
+    "frame_time": 30 * u.day,
     "include_star": False,
     "include_planets": True,
     "include_disk": False,
     "bandpass": bandpass,
-    "spectral_resolution": 100,
+    "spectral_resolution": 20,
+    # "return_frames": True,
     "return_frames": True,
     "return_spectrum": True,
     # "separate_sources": False,
@@ -72,28 +72,29 @@ obs1 = Observation(coro1, system, observing_scenario, logging_level="WARNING")
 # observing_scenario2 = ObservingScenario(obs_scen2)
 
 
-obs_times = Time(np.linspace(2000, 2005, 1), format="decimalyear")
-generation_data = {"time": obs_times}
-plot_image1 = ObservationFrames(
+obs_times = Time(np.linspace(2000, 2005, 2), format="decimalyear")
+generation_data = {"start_time": obs_times}
+image_start = ObservationFrames(
     obs1,
     gen_data=generation_data,
-    # ax_kwargs={"title": ""},
+    all_keys=["time", "spectral_wavelength(nm)"],
     imaging_params={"plane": "coro"},
+    # animation_kwargs={"title_key": "start_time"},
 )
-plot_image_wavelength = ObservationFrames(
+image_time = ObservationFrames(
     obs1,
     gen_data=generation_data,
     cumulative_keys=["spectral_wavelength(nm)"],
-    # ax_kwargs={"title": "Cumulative"},
     imaging_params={"plane": "coro"},
+    animation_kwargs={"title_key": "time"},
 )
-plot_image_cumu1 = ObservationFrames(
+image_wavelength = ObservationFrames(
     obs1,
     gen_data=generation_data,
-    cumulative_keys=["frame", "spectral_wavelength(nm)"],
-    # ax_kwargs={"title": "Cumulative"},
     imaging_params={"plane": "coro"},
+    animation_kwargs={"title_key": "spectral_wavelength(nm)"},
 )
+bandpass_plot = Bandpass(bandpass, obs=obs1)
 plot3d = Orbit(
     system,
     gen_data={"time": times},
@@ -114,26 +115,28 @@ plot2d = Orbit(
     },
 )
 
-nframes, *_ = obs1.calc_frame_info()
-frame_inds = np.arange(nframes)
-
 # Create a figure and add the plots
 figure_kwargs = {"figsize": (10, 10), "layout": None}
-main_figure = Figure(fig_kwargs=figure_kwargs, ncols=2, nrows=2)
+main_figure = Figure(fig_kwargs=figure_kwargs, ncols=3, nrows=2)
 # animation_info = {"time": {"method": "value", "initial": times[0]}, "frame": None}
-levels = {0: ["time"], 1: ["frame"], 2: ["spectral_wavelength(nm)"]}
+levels = {0: ["start_time"], 1: ["time"], 2: ["spectral_wavelength(nm)"]}
 main_figure.please_set_animation_levels(levels)
 # main_figure.please_set_secondary_animation_keys(["frame"])
 
-main_figure.please_add_plot(plot_image1)
-main_figure.please_add_plot(plot_image_wavelength, col=1, shared_plot_data=plot_image1)
-# main_figure.please_add_plot(plot_image_cumu1, col=2, shared_plot_data=plot_image1)
+main_figure.please_add_plot(image_start, primary=False)
+main_figure.please_add_plot(
+    image_time, col=1, shared_plot_data=image_start, primary=False
+)
+main_figure.please_add_plot(
+    image_wavelength, col=2, shared_plot_data=image_start, primary=True
+)
+main_figure.please_add_plot(bandpass_plot, row=1, col=2, colspan=1, primary=False)
 main_figure.please_add_plot(plot3d, row=1, col=0)
 main_figure.please_add_plot(plot2d, row=1, col=1)
 
 
 # Set the animation values and then render
-render_settings = {"animation_duration": 5}
+render_settings = {"animation_duration": 5, "framerate": 25}
 main_figure.please_render_video(
     Path("renders/new.mp4"), render_settings=render_settings
 )
