@@ -255,44 +255,69 @@ class Orbit(Scatter):
 
     def get_planet_da(self, planet_ind):
         # dist_attrs = self.get_dist_attrs(self.system, lists=False)
-        planet_dataset = self.data.sel(
-            object="planet", index=planet_ind, **self.base_sel
-        )
-        # ref_frame=self.orbit_params["ref_frame"],
-        # prop=self.orbit_params["propagation"],
-        # **dist_attrs,
+        plan_sel = self.base_sel.copy()
+        plan_sel.update({"object": "planet", "index": planet_ind})
+        planet_dataset = self.data.sel(**plan_sel)
         return planet_dataset
 
     def get_system_da(self):
         system_dataset = self.data.sel(object="planet", **self.base_sel)
-        # ref_frame=self.orbit_params["ref_frame"],
-        # prop=self.orbit_params["propagation"],
         return system_dataset
 
     def draw_planet(self, planet_ind):
         planet = self.system.planets[planet_ind]
+        plan_sel = {"object": "planet", "index": planet_ind}
+        planet_context = self.state.context_sel(extra_sel=plan_sel)
+
+        self.data.sel(**plan_sel)
         planet_dataset = self.get_planet_da(planet_ind)
 
         # Plot the planet
-        self.generic_plot(planet_dataset, plot_kwargs=planet.plot_kwargs)
+        self.generic_plot(data=planet_dataset, plot_kwargs=planet.plot_kwargs)
         if self.planet_params.get("add_trail"):
             # Add a dashed line behind the planet
+            trail_sel = self.state.context_sel(
+                extra_sel=plan_sel, extra_strategies={"time": "Cumulative"}
+            )
+            trail_dataset = self.data.sel(**trail_sel)
+            trail_kwargs = {"color": "w", "linestyle": "dashed", "alpha": 0.5}
             self.generic_plot(
-                planet_dataset,
-                plot_method="plot",
-                animation_kwargs={"animation_style": "Cumulative"},
-                plot_kwargs={"color": "w", "linestyle": "dashed", "alpha": 0.5},
+                data=trail_dataset, plot_method="plot", plot_kwargs=trail_kwargs
             )
 
         if self.planet_params.get("project"):
-            point_projects = self.planet_params["project"].get("point")
+            # Project planet positions as a trail
             trail_projects = self.planet_params["project"].get("trail")
-            if point_projects is not None:
-                for ax_letter in point_projects:
-                    self.project_trail(planet_dataset, ax_letter)
             if trail_projects is not None:
                 for ax_letter in trail_projects:
-                    self.project_trail(planet_dataset, ax_letter)
+                    self.project("trail", ax_letter, extral_sel=plan_sel)
+
+            # Project planet as a point
+            point_projects = self.planet_params["project"].get("point")
+            if point_projects is not None:
+                for ax_letter in point_projects:
+                    self.project("point", ax_letter, extral_sel=plan_sel)
+
+    def project(self, type, ax_letter, extra_sel={}, plot_kwargs=None):
+        min_value = self.ax_kwargs["lims"][ax_letter][0]
+        default_plot_kwargs = {"zs": min_value, "zdir": ax_letter, "alpha": 0.1}
+        if plot_kwargs is not None:
+            default_plot_kwargs.update(plot_kwargs)
+
+        plot_kwargs = copy.deepcopy(default_plot_kwargs)
+        if type == "trail":
+            plot_kwargs["linestyle"] = "-"
+            plot_kwargs["color"] = "w"
+            strategy = {"time": "Cumulative"}
+            method = "plot"
+        elif type == "point":
+            plot_kwargs["facecolor"] = "grey"
+            plot_kwargs["edgecolor"] = "grey"
+            strategy = {"time": "Value"}
+            method = "scatter"
+        sel = self.state.context_sel(extra_sel=extra_sel, extra_strategies=strategy)
+        dataset = self.data.sel(**sel)
+        self.generic_plot(data=dataset, plot_method=method, plot_kwargs=plot_kwargs)
 
     def convert_units(self):
         self.data = misc.add_units(

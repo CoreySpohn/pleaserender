@@ -122,8 +122,8 @@ class Plot:
             ax_keys = axis_keys
 
         if data is None:
-            sel = self.state.context_sel()
-            data = self.data.sel(**sel)
+            # sel = self.state.context_sel()
+            # data = self.data.sel(**sel)
             plot_data = self.get_plot_data()
         else:
             # Allows for 2 and 3 dimensional data with the same call
@@ -318,14 +318,11 @@ class Plot:
     def project_point(
         self,
         data,
-        animation_value,
-        animation_key,
         ax_letter,
         object,
         projection_kwargs=None,
     ):
         min_value = self.ax_kwargs["lims"][ax_letter][0]
-        _args = (data, animation_value, animation_key)
         _axis_keys = ["x", "y", "z"]
         _axis_keys.remove(ax_letter)
         axis_keys = {key: key for key in _axis_keys}
@@ -338,7 +335,7 @@ class Plot:
         position_kwargs["facecolor"] = "grey"
         position_kwargs["edgecolor"] = "grey"
         self.generic_plot(
-            *_args,
+            data=data,
             axis_keys=axis_keys,
             plot_method="scatter",
             animation_kwargs={"animation_style": "Single point"},
@@ -348,13 +345,10 @@ class Plot:
     def project_trail(
         self,
         data,
-        animation_value,
-        animation_key,
         ax_letter,
         projection_kwargs=None,
     ):
         min_value = self.ax_kwargs["lims"][ax_letter][0]
-        _args = (data, animation_value, animation_key)
         _axis_keys = ["x", "y", "z"]
         _axis_keys.remove(ax_letter)
         axis_keys = {key: key for key in _axis_keys}
@@ -366,7 +360,7 @@ class Plot:
         projection_trail_kwargs["linestyle"] = "-"
         projection_trail_kwargs["color"] = "w"
         self.generic_plot(
-            *_args,
+            data=data,
             axis_keys=axis_keys,
             plot_method="plot",
             animation_kwargs={"animation_style": "Cumulative"},

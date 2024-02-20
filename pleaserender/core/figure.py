@@ -32,6 +32,7 @@ class Figure:
         # List to store plots
         self.plots = []
         self.primary_plots = []
+        self.secondary_plots = []
 
         # List to store subfigures
         self.subfigures = []
@@ -54,7 +55,7 @@ class Figure:
         sharey_plot=None,
         shared_plot_data=None,
         dataset=None,
-        primary=True,
+        draw_with=None,
     ):
         plot_type = plot.__class__.__name__
         if plot_type not in self.plots_by_type:
@@ -73,8 +74,13 @@ class Figure:
             plot.data = dataset
         plot.shared_plot_data = shared_plot_data
         self.plots.append(plot)
-        if primary:
+        if draw_with is not None:
             self.primary_plots.append(plot)
+        else:
+            self.secondary_plots.append(plot)
+
+            # Link the secondary plot to the primary plot, referenced in render_state
+            plot.render_state_kwargs["draw_with"] = draw_with
 
     def please_add_subfigure(self, subfigure, row, col, rowspan=1, colspan=1):
         subfigure.grid_position = (row, col, rowspan, colspan)
@@ -191,88 +197,22 @@ class Figure:
         # Create figure (and all subfigures)
         self.fig = self.create_figure()
 
-        # Create a progress bar
-        # self.pbar = tqdm(
-        #     total=len(self.animation_values) + 1,
-        #     desc=f"Rendering into {self.save_path}",
-        # )
-
-        # Set the initial state
-        # self.render_state = {"nframes": 0, "draw_data": {}}
-        # for i, animation_key in enumerate(self.animation_order):
-        #     self.render_state[animation_key] = {}
-        #     self.render_state[animation_key]["order"] = i
-        #     self.render_state[animation_key]["method"] = self.animation_info[
-        #         animation_key
-        #     ].get("method")
-        #     initial = self.animation_info[animation_key]["initial"]
-        #     self.render_state["draw_data"][animation_key] = initial
-        #     # if self.render_state[animation_key]["method"] == "index":
-        #     #     self.render_state[animation_key]["current_ind"] = initial
-        #     # elif self.render_state[animation_key]["method"] == "value":
-        #     #     self.render_state[animation_key]["current_val"] = initial
-        #     # else:
-        #     #     raise NotImplementedError("Only index and value supported")
-
-        #     # Progress bar for this key
-        #     if animation_key in self.generation_data.keys():
-        #         # self.render_state[animation_key]["est_bar"] = False
-        #         ndata = len(self.generation_data[animation_key])
-        #         self.render_state[animation_key]["pbar"] = tqdm(
-        #             total=ndata,
-        #             desc=f"Rendering into {self.save_path}. {animation_key}",
-        #         )
-        # else:
-        #     self.render_state[animation_key]["pbar"] = None
-        #     self.render_state[animation_key]["est_bar"] = True
-        #     self.render_state[animation_key]["est_max"] = 0
-
     def render(self, writer):
         # Setting up a loop to render the frames until all are finished
-        states = [plot.state for plot in self.plots]
         self.finished = False
-        # next_state = sorted(states)[0]
         # Context refers to the current state of the animation
         # for each level value
         while True:
             self.context = self.get_next_context()
-            # print(self.context)
             if self.finished:
                 return
 
-            for plot in self.plots:
+            for plot in self.primary_plots:
                 plot.render(self.context)
+            for plot in self.secondary_plots:
+                plot.render(self.context)
+            print(f"Rendering {self.context}")
             writer.grab_frame()
-            # print("\n")
-
-            # Render the current frame
-            # next_state.plot.ax.clear()
-            # next_state.plot.draw_plot()
-
-            # min_level = min(next_state.levels.keys())
-            # min_level_key = next_state.levels[min_level]
-            # current_val = next_state.next_sel[min_level_key]
-            # next_state.plot.adjust_settings(current_val, min_level_key)
-
-            # state_order = sorted(states)
-            # Check if any states are equal to the state just drawn
-            # any_left_to_draw = any(
-            #     [other_state == state_order[0] for other_state in state_order[1:]]
-            # )
-            # any_parents_left_to_draw = any(
-            #     [
-            #         state_order[0].is_parent(other_state)
-            #         for other_state in state_order[1:]
-            #     ]
-            # )
-
-            # Iterate the state we just drew
-            # next_state.iterate_sel()
-            # print(next_state)
-
-            # Get the next state to draw
-            # next_state = sorted(states)[0]
-            # all_finished = all([state.finished for state in states])
 
     def get_next_context(self):
         all_key_vals, ignored_keys = self.generate_all_key_vals()
@@ -316,7 +256,6 @@ class Figure:
             if self.context == first_context:
                 self.finished = True
                 return
-                # raise StopIteration("All possible contexts have been exhausted.")
 
     def generate_all_key_vals(self):
         all_key_vals = {}

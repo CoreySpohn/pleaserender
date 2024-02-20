@@ -2,7 +2,7 @@ import numpy as np
 
 
 class PlotRenderState:
-    def __init__(self, required_keys, base_levels, plot, key_strategies=None):
+    def __init__(self, required_keys, base_levels, plot, key_strategies=None, draw_with=None):
         """
         The PlotRenderState class represents the state of a Plot in its render
         process and handles comparisons between different PlotRenderStates.
@@ -17,6 +17,7 @@ class PlotRenderState:
         self.levels = {}
         self.key_levels = {}
         self.base_sel = plot.base_sel
+        self.draw_with = draw_with
 
         # Sort the levels of the required keys based on the base_levels
         for level, level_keys in base_levels.items():
@@ -57,6 +58,13 @@ class PlotRenderState:
         if not new:
             self.redraw = False
             return
+        
+        if self.draw_with is not None:
+            # If this plot is drawn with another plot, then we need to check if
+            # the other plot has been redrawn
+            if not self.draw_with.state.redraw:
+                self.redraw = False
+                return
 
         # Get all values for the context that match the required keys
         _context = self.extract_plot_context(fig_context)
@@ -69,31 +77,28 @@ class PlotRenderState:
         plot_context = {key: fig_context[key] for key in self.required_keys}
         return plot_context
 
-    # def create_full_context(self, fig_context):
-    #     base_context = self.base_sel.copy()
-    #     plot_context = self.extract_plot_context(fig_context)
-    #     base_context.update(plot_context)
-    #     return base_context
-
-    # def check_valid_context(self, fig_context):
-    #     # _context = self.extract_plot_context(fig_context)
-    #     is_valid = self.plot.valid_plot_data(_context)
-    #     return is_valid
-
     def is_new_context(self, fig_context):
         _context = self.extract_plot_context(fig_context)
         new_context = _context != self.context
         return new_context
 
-    def context_sel(self, context=None):
+    def context_sel(self, context=None, extra_sel=None, extra_strategies=None):
         if context is None:
             context = self.context
         context = self.extract_plot_context(context)
 
         data = self.plot.data
         sel = self.base_sel.copy()
+        if extra_sel is not None:
+            # Update the base selection with the extra selection if it exists
+            sel.update(extra_sel)
         for key, val in context.items():
-            key_strat = self.key_strategies.get(key)
+            if extra_strategies is not None:
+                # If the key has a specific strategy, use that otherwise, use
+                # the default strategy
+                key_strat = extra_strategies.get(key, self.key_strategies.get(key))
+            else:
+                key_strat = self.key_strategies.get(key)
             match key_strat:
                 case "Cumulative":
                     sel[key] = slice(None, val)
@@ -110,99 +115,9 @@ class PlotRenderState:
         return sel
 
     def context_data(self, context=None):
-        # sel = self.context_sel(context)
         sel = self.create_full_context(context)
         data = self.plot.data.sel(**sel)
-        # for key in self.sum_keys:
-        #     if len(data[key].shape) > 0:
-        #         data = data.sum(key)
-
-        # data = self.plot.access_data(data)
         return data
-
-    # def is_parent(self, other):
-    #     """
-    #     Check if the other PlotRenderState is the parent of the self PlotRenderState.
-    #     For example, if
-    #         base_levels = {0: ["time"], 1: ["frame"]}
-    #         self.state = {"time": 5, "frame": 1}
-    #         other.state = {"time": 5}
-    #     then other is a parent of self.
-
-    #     Args:
-    #         other (RenderState):
-    #             The other RenderState instance to compare to.
-
-    #     Returns:
-    #         bool:
-    #             True if other is a parent state of self
-    #     """
-    #     if self.finished or other.finished:
-    #         return False
-
-    #     # Check if any of the required keys match
-    #     intersecting_keys = set(self.required_keys).intersection(other.required_keys)
-    #     if not intersecting_keys:
-    #         # No required keys match, so other is not a parent
-    #         return False
-
-    #     for _, key in sorted(self.levels.items(), key=lambda x: x[0]):
-    #         if key in self.required_keys:
-    #             otherval = other.next_sel.get(key)
-    #             selfval = self.next_sel.get(key)
-    #             if selfval != otherval:
-    #                 # If any key doesn't match, then other is not a parent
-    #                 return False
-    #     return True
-
-    # def __lt__(self, other):
-    #     """
-    #     Less than comparison for sorting which RenderState instance will be drawn
-    #     next and is therefore "less".
-
-    #     Args:
-    #         other (RenderState):
-    #             The other RenderState instance to compare to.
-
-    #     Returns:
-    #         bool:
-    #             True if self is considered less than other, based on the
-    #             defined key levels and values.
-    #     """
-    #     if self.finished and not other.finished:
-    #         # 'Finished' state is considered greater than any other state
-    #         return False
-    #     if not self.finished and other.finished:
-    #         return True
-
-    #     for _, key in sorted(self.levels.items(), key=lambda x: x[0]):
-    #         # Keys are checked in levels, keep looking until we find a difference
-    #         # between the two states
-    #         if key in self.required_keys and key in other.required_keys:
-    #             selfval = self.next_sel.get(key)
-    #             otherval = other.next_sel.get(key)
-    #             if selfval != otherval:
-    #                 return selfval < otherval
-    #     return False
-
-    # def __eq__(self, other):
-    #     """
-    #     Equal to comparison for checking if two PlotRenderState instances are equal.
-
-    #     Returns:
-    #         bool:
-    #             True if all required keys and their next frame values are equal
-    #             for both instances.
-    #     """
-    #     if self.finished and other.finished:
-    #         return True
-    #     if self.finished or other.finished:
-    #         return False
-
-    #     relevant_keys = set(self.required_keys).union(other.required_keys)
-    #     return all(
-    #         self.next_sel.get(key) == other.next_sel.get(key) for key in relevant_keys
-    #     )
 
     def __repr__(self):
         state_repr = ", ".join(f"{key}={value}" for key, value in self.context.items())

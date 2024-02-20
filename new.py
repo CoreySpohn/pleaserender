@@ -15,7 +15,9 @@ from synphot.models import Gaussian1D
 from tqdm import main
 
 from pleaserender.core import Figure, Plot, Scatter
-from pleaserender.exoplanet import Bandpass, Image, ObservationFrames, Orbit
+from pleaserender.exoplanet import Bandpass, Image
+from pleaserender.exoplanet import Observation as ObsPlot
+from pleaserender.exoplanet import ObservationFrames, Orbit, SpectralCube
 
 plt.style.use("dark_background")
 
@@ -49,7 +51,7 @@ obs_scen = {
     "central_wavelength": wavelength,
     "start_time": times[0],
     "exposure_time": 30 * u.day,
-    "frame_time": 30 * u.day,
+    "frame_time": 10 * u.day,
     "include_star": False,
     "include_planets": True,
     "include_disk": False,
@@ -67,33 +69,15 @@ obs_scen = {
 }
 observing_scenario = ObservingScenario(obs_scen)
 obs1 = Observation(coro1, system, observing_scenario, logging_level="WARNING")
-# obs_scen2 = copy.copy(obs_scen)
-# obs_scen2["time_invariant_planets"] = True
-# observing_scenario2 = ObservingScenario(obs_scen2)
 
 
-obs_times = Time(np.linspace(2000, 2005, 2), format="decimalyear")
+obs_times = Time(np.linspace(2000, 2005, 1), format="decimalyear")
 generation_data = {"start_time": obs_times}
-image_start = ObservationFrames(
-    obs1,
-    gen_data=generation_data,
-    all_keys=["time", "spectral_wavelength(nm)"],
-    imaging_params={"plane": "coro"},
-    # animation_kwargs={"title_key": "start_time"},
+obs = ObsPlot(obs1, gen_data=generation_data, imaging_params={"plane": "coro"})
+frames = ObservationFrames(
+    obs1, gen_data=generation_data, imaging_params={"plane": "coro"}
 )
-image_time = ObservationFrames(
-    obs1,
-    gen_data=generation_data,
-    cumulative_keys=["spectral_wavelength(nm)"],
-    imaging_params={"plane": "coro"},
-    animation_kwargs={"title_key": "time"},
-)
-image_wavelength = ObservationFrames(
-    obs1,
-    gen_data=generation_data,
-    imaging_params={"plane": "coro"},
-    animation_kwargs={"title_key": "spectral_wavelength(nm)"},
-)
+spectra = SpectralCube(obs1, gen_data=generation_data, imaging_params={"plane": "coro"})
 bandpass_plot = Bandpass(bandpass, obs=obs1)
 plot3d = Orbit(
     system,
@@ -123,16 +107,12 @@ levels = {0: ["start_time"], 1: ["time"], 2: ["spectral_wavelength(nm)"]}
 main_figure.please_set_animation_levels(levels)
 # main_figure.please_set_secondary_animation_keys(["frame"])
 
-main_figure.please_add_plot(image_start, primary=False)
-main_figure.please_add_plot(
-    image_time, col=1, shared_plot_data=image_start, primary=False
-)
-main_figure.please_add_plot(
-    image_wavelength, col=2, shared_plot_data=image_start, primary=True
-)
-main_figure.please_add_plot(bandpass_plot, row=1, col=2, colspan=1, primary=False)
-main_figure.please_add_plot(plot3d, row=1, col=0)
-main_figure.please_add_plot(plot2d, row=1, col=1)
+main_figure.please_add_plot(obs)
+main_figure.please_add_plot(frames, col=1, shared_plot_data=obs)
+main_figure.please_add_plot(spectra, col=2, shared_plot_data=obs)
+main_figure.please_add_plot(bandpass_plot, row=1, col=2, colspan=1, draw_with=spectra)
+# main_figure.please_add_plot(plot3d, row=1, col=0)
+# main_figure.please_add_plot(plot2d, row=1, col=1)
 
 
 # Set the animation values and then render
