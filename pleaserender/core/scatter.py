@@ -2,7 +2,7 @@ from pleaserender.core.plot import Plot
 
 
 class Scatter(Plot):
-    def __init__(self, **kwargs):
+    def __init__(self, *args, **kwargs):
         """
         A generic scatter plot
         Args:
@@ -12,5 +12,5 @@ class Scatter(Plot):
             axis_keys (dictionary):
                 The keys of
         """
-        super().__init__(**kwargs)
+        super().__init__(*args, **kwargs)
         self.plot_method = "scatter"

@@ -1,3 +1,4 @@
+import copy
 import datetime
 from pathlib import Path
 
@@ -30,11 +31,11 @@ class Figure:
 
         # List to store plots
         self.plots = []
+        self.primary_plots = []
+        self.secondary_plots = []
 
         # List to store subfigures
         self.subfigures = []
-
-        # self.dataset = None
 
         self.plot_calls = {}
         self.plots_by_type = {}
@@ -52,6 +53,7 @@ class Figure:
         sharey_plot=None,
         shared_plot_data=None,
         dataset=None,
+        draw_with=None,
     ):
         plot_type = plot.__class__.__name__
         if plot_type not in self.plots_by_type:
@@ -66,21 +68,28 @@ class Figure:
             "sharey_plot": sharey_plot,
         }
         plot.data_provided = dataset is not None
-        plot.shared_plot_data = shared_plot_data
         if plot.data_provided:
             plot.data = dataset
+        plot.shared_plot_data = shared_plot_data
         self.plots.append(plot)
+        if draw_with is None:
+            self.primary_plots.append(plot)
+        else:
+            self.secondary_plots.append(plot)
+
+            # Link the secondary plot to the primary plot, referenced in render_state
+            plot.render_state_kwargs["draw_with"] = draw_with
 
     def please_add_subfigure(self, subfigure, row, col, rowspan=1, colspan=1):
         subfigure.grid_position = (row, col, rowspan, colspan)
         self.subfigures.append(subfigure)
 
-    def please_set_animation_values(self, animation_values, animation_key):
-        if type(animation_values) is Time:
-            animation_values = animation_values.datetime64
-        self.animation_values = animation_values
-        self.animation_key = animation_key
-        self.is_animated = len(animation_values) > 1
+    def please_set_animation_levels(self, levels):
+        self.levels = levels
+        self.key_levels = {}
+        for level, level_keys in levels.items():
+            for level_key in level_keys:
+                self.key_levels[level_key] = level
 
     def please_preview(self, frame):
         # Create figure (and all subfigures)
@@ -113,12 +122,13 @@ class Figure:
             "bitrate": -1,
             "extra_args": ["-vcodec", "libx264", "-pix_fmt", "yuv420p"],
             "img_dpi": 300,
+            "framerate": 30,
         }
         if render_settings is not None:
             final_render_settings.update(render_settings)
-        final_render_settings["framerate"] = (
-            len(self.animation_values) / final_render_settings["animation_duration"]
-        )
+        # final_render_settings["framerate"] = (
+        #     len(self.animation_values) / final_render_settings["animation_duration"]
+        # )
 
         # Create writer class for the animation
         writer = FFMpegWriter(
@@ -135,81 +145,124 @@ class Figure:
 
         # Create the figure (and all subfigures)
         self.render_setup()
+        self.plots = self.collect_plots(self.plots)
+        self.subfigures = self.collect_subfigures(self.subfigures)
 
-        anim = FuncAnimation(self.fig, self.render, frames=self.animation_values)
-        anim.save(save_path, **save_settings)
+        with writer.saving(self.fig, save_path, 300):
+            self.render(writer)
 
-        self.pbar.close()
+    def collect_plots(self, plots):
+        for subfigure in self.subfigures:
+            _plots = subfigure.collect_plots(plots)
+            plots.extend(_plots)
+        return plots
+
+    def collect_subfigures(self, subfigures):
+        for subfigure in self.subfigures:
+            _subfigures = subfigure.collect_subfigures(subfigures)
+            subfigures.extend(_subfigures)
+        return subfigures
 
     def render_setup(self):
         # Check that all the data has been generated
-        self.generate_data(self.animation_values, self.animation_key)
+        self.generate_data()
 
         # Create figure (and all subfigures)
         self.fig = self.create_figure()
 
-        # Create a progress bar
-        self.pbar = tqdm(
-            total=len(self.animation_values) + 1,
-            desc=f"Rendering into {self.save_path}",
-        )
+    def render(self, writer):
+        # Setting up a loop to render the frames until all are finished
+        self.finished = False
+        # Context refers to the current state of the animation
+        # for each level value
+        while True:
+            self.context = self.get_next_context()
+            if self.finished:
+                return
 
-    def render(self, animation_value):
-        """
-        Render the figure for the given animation value.
-        """
-        # Clear previous frame
-        self.clear()
+            for plot in self.plots:
+                plot.render()
+            print(f"Rendering frame {self.context}")
 
-        # Render subfigures first
+            writer.grab_frame()
+
+    def get_next_context(self):
+        all_key_vals, ignored_keys = self.generate_all_key_vals()
+        if not hasattr(self, "context"):
+            # Dynamically generate all_key_vals and initialize context if it's
+            # the first call
+            self.context = self.get_first_context(all_key_vals)
+            any_redraw = self.check_any_redraws()
+            if any_redraw:
+                # First context is valid, return
+                return self.context
+
+        first_context = self.get_first_context(all_key_vals)
+        # Save the original context to detect a full cycle
+        while True:
+            for _, keys in sorted(self.levels.items(), reverse=True):
+                for key in keys:
+                    if key in ignored_keys:
+                        # Skip iteration for keys with no values
+                        continue
+                    current_index = all_key_vals[key].index(self.context[key])
+                    if current_index + 1 < len(all_key_vals[key]):
+                        key_val = all_key_vals[key][current_index + 1]
+                        self.context[key] = key_val
+                        # Check if anything needs to be redrawn
+                        any_redraw = self.check_any_redraws()
+                        if any_redraw:
+                            # Redraw needed, return context
+                            return self.context
+                        # Break out of the inner loop to reset context in outer
+                        # loop if needed
+                        break
+                    else:
+                        self.context[key] = all_key_vals[key][0]
+                else:
+                    # Continue if the inner loop wasn't broken
+                    continue
+                # Inner loop was broken, break the outer
+                break
+
+            # Check if we have looped back to the original context without
+            # finding a valid one
+            if self.context == first_context:
+                self.finished = True
+                return
+
+    def generate_all_key_vals(self):
+        all_key_vals = {}
+        ignored_keys = []
+        for _, level_keys in self.levels.items():
+            for level_key in level_keys:
+                _key_vals = set()
+                for plot in self.plots:
+                    if level_key in plot.required_keys:
+                        _key_vals.update(plot.state.key_values[level_key])
+                if len(_key_vals) == 0:
+                    ignored_keys.append(level_key)
+                else:
+                    all_key_vals[level_key] = sorted(_key_vals)
+        return all_key_vals, ignored_keys
+
+    def get_first_context(self, all_key_vals):
+        # Initialize context with the first values from the dynamically
+        # generated all_key_vals
+        context = {k: v[0] for k, v in all_key_vals.items()}
+        return context
+
+    def check_any_redraws(self):
+        for plot in self.primary_plots:
+            plot.state.process_context(self.context)
+        for plot in self.secondary_plots:
+            plot.state.process_context(self.context)
+        any_redraw = any(plot.state.redraw for plot in self.plots)
+        return any_redraw
+
+    def generate_data(self):
         for subfigure in self.subfigures:
-            # Recursive call for subfigures
-            subfigure.render(animation_value)
-
-        # Render plots
-        for plot in self.plots:
-            plot.draw_plot(animation_value, self.animation_key)
-            plot.adjust_settings(animation_value, self.animation_key)
-
-        if "title" not in self.fig_kwargs:
-            if isinstance(animation_value, np.datetime64):
-                title = f"{Time(animation_value).decimalyear:.2f}"
-            elif isinstance(animation_value, u.Quantity):
-                title = (
-                    f"{self.animation_key.replace('_', ' ')} "
-                    "{animation_value.value:.2f}({animation_value.unit})"
-                )
-            elif isinstance(animation_value, float):
-                title = (
-                    f"{self.animation_key.replace('_', ' ')} "
-                    "{animation_value.value:.2f}"
-                )
-            elif isinstance(animation_value, np.int64):
-                title = f"{self.animation_key.replace('_', ' ')} {animation_value}"
-            else:
-                breakpoint()
-                raise NotImplementedError(
-                    f"Type {type(animation_value)} not implemented yet"
-                )
-        else:
-            title = self.fig_kwargs["title"]
-        self.fig.suptitle(title)
-        if hasattr(self, "pbar"):
-            self.pbar.update(1)
-
-    def clear(self):
-        # Clear plots in the subfigures first
-        for subfigure in self.subfigures:
-            # Recursive call for subfigures
-            subfigure.clear()
-
-        # Clear plots in the current figure
-        for plot in self.plots:
-            plot.ax.clear()
-
-    def generate_data(self, animation_values, animation_key):
-        for subfigure in self.subfigures:
-            subfigure.generate_data(animation_values, animation_key)
+            subfigure.generate_data()
         for plot in self.plots:
             if plot.shared_plot_data is not None:
                 # Get the data from the other plot
@@ -217,7 +270,10 @@ class Figure:
                     raise ValueError("The shared plot data has not been generated yet.")
                 plot.data = plot.shared_plot_data.data
             else:
-                plot.generate_data(animation_values, animation_key)
+                plot.generate_data()
+            plot.process_data()
+            plot.get_required_keys()
+            plot.create_render_state(self.levels)
 
     def create_figure(self, parent_fig=None, parent_spec=None, animation_key=None):
         if parent_fig is None:
@@ -228,7 +284,7 @@ class Figure:
             row, col, rowspan, colspan = self.grid_position
             subfigspec = parent_spec[row : row + rowspan, col : col + colspan]
             self.fig = parent_fig.add_subfigure(subfigspec)
-            self.animation_key = animation_key
+            self.primary_animation_key = animation_key
         gridspec = GridSpec(self.nrows, self.ncols, figure=self.fig, **self.gs_kwargs)
 
         # Assign axes to plots
@@ -252,6 +308,30 @@ class Figure:
             subfigure.create_figure(
                 parent_fig=self.fig,
                 parent_spec=gridspec,
-                animation_key=self.animation_key,
+                animation_key=self.primary_animation_key,
             )
         return self.fig
+
+    def create_title(self, animation_value, animation_key):
+        if "title" not in self.fig_kwargs:
+            if isinstance(animation_value, np.datetime64):
+                title = f"{Time(animation_value).decimalyear:.2f}"
+            elif isinstance(animation_value, u.Quantity):
+                title = (
+                    f"{animation_key.replace('_', ' ')} "
+                    "{animation_value.value:.2f}({animation_value.unit})"
+                )
+            elif isinstance(animation_value, float):
+                title = (
+                    f"{animation_key.replace('_', ' ')} " "{animation_value.value:.2f}"
+                )
+            elif isinstance(animation_value, np.int64):
+                title = f"{animation_key.replace('_', ' ')} {animation_value}"
+            else:
+                breakpoint()
+                raise NotImplementedError(
+                    f"Type {type(animation_value)} not implemented yet"
+                )
+        else:
+            title = self.fig_kwargs["title"]
+        return title

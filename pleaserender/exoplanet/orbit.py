@@ -15,6 +15,7 @@ class Orbit(Scatter):
     def __init__(
         self,
         system,
+        gen_data=None,
         plane_2d=None,
         orbit_params=None,
         star_params=None,
@@ -138,69 +139,20 @@ class Orbit(Scatter):
         for planet_ind in self.planet_params["planets_to_plot"]:
             self.add_planet_kwargs(planet_ind, self.planet_params["planet_plot_kwargs"])
 
-    # def verify_data(self, dataset, animation_values, animation_key):
-    #     """
-    #     Make sure we have x, y, z information for all objects
-    #     Args:
-    #         dataset (xr.Dataset):
-    #             Dataset containing the data and coordinates
-    #         animation_values (numpy.ndarray):
-    #             List of values for the animation
-    #         animation_key (str):
-    #             Key for the animation values in the plot object's dataframe
-    #     """
-    #     # Check that we have the x, y, z coordinates for all objects
-    #     if self.planet_params.get("plot"):
-    #         for planet_ind in self.planet_params["planets_to_plot"]:
-    #             # Check for data of all planets that should be plotted
-    #             planet_data = self.get_planet_da(planet_ind, dataset)
-    #             for var in ["x", "y", "z"]:
-    #                 if var not in planet_data.variables:
-    #                     return False
-    #                 if np.any(np.isnan(planet_data[var])):
-    #                     return False
-    #     dataset = self.convert_units(dataset)
-    #     return True
+        self.gen_data = gen_data
 
-    # def generate_data(self, dataset, animation_values, animation_key):
-    #     """
-    #     Adds the x, y, z coordinates for the planets to the dataset
-    #     """
-    #     times = dataset["time"]
-    #     # Check for data of all planets that should be plotted
-    #     if np.all(np.isnan(dataset["x"].sel(prop=self.orbit_params["propagation"]))):
-    #         _da = self.system.propagate(
-    #             Time(times),
-    #             ds=dataset,
-    #             prop=self.orbit_params["propagation"],
-    #             frame=self.orbit_params["frame"],
-    #             convention=self.orbit_params["convention"],
-    #         )
-    #     else:
-    #         _da = self.system.convert_to_frame(
-    #             dataset,
-    #             prop=self.orbit_params["propagation"],
-    #             frame=self.orbit_params["frame"],
-    #             convention=self.orbit_params["convention"],
-    #         )
-    #     # Update values only where they are NaN in dataset
-    #     merged_ds = xr.merge([dataset, _da])
-    #     for var in dataset.data_vars:
-    #         # Check if the variable is present in both datasets
-    #         if var in _da.data_vars:
-    #             # Use np.where to update only NaN values
-    #             merged_ds[var].values = np.where(
-    #                 np.isnan(dataset[var].values),
-    #                 _da[var].values,
-    #                 dataset[var].values,
-    #             )
-    #     dataset = merged_ds
-    #     # dataset = dataset.update(_da)
-    #     dataset = self.convert_units(dataset)
+        self.base_sel = {
+            "ref_frame": self.orbit_params["ref_frame"],
+            "prop": self.orbit_params["propagation"],
+        }
+        self.animation_key = "time"
 
-    #     return dataset
+    def get_required_keys(self):
+        self.required_keys = ["time"]
 
-    def draw_plot(self, animation_value, animation_key):
+    def draw_plot(self):
+        animation_key = "time"
+        animation_value = self.state.context["time"]
         n_vals = self.data[animation_key].size
         current_ind = np.argmax(self.data[animation_key].values == animation_value)
         current_view = self.calc_frame_view(current_ind, n_vals)
@@ -237,63 +189,74 @@ class Orbit(Scatter):
 
             # Finally, plot the planets
             for planet_ind in self.planet_params["planets_to_plot"]:
-                self.draw_planet(planet_ind, animation_value, animation_key)
+                self.draw_planet(planet_ind)
 
     def get_planet_da(self, planet_ind):
         # dist_attrs = self.get_dist_attrs(self.system, lists=False)
-        planet_dataset = self.data.sel(
-            object="planet",
-            index=planet_ind,
-            ref_frame=self.orbit_params["ref_frame"],
-            prop=self.orbit_params["propagation"],
-            # **dist_attrs,
-        )
+        plan_sel = self.base_sel.copy()
+        plan_sel.update({"object": "planet", "index": planet_ind})
+        planet_dataset = self.data.sel(**plan_sel)
         return planet_dataset
 
     def get_system_da(self):
-        system_dataset = self.data.sel(
-            object="planet",
-            ref_frame=self.orbit_params["ref_frame"],
-            prop=self.orbit_params["propagation"],
-        )
+        system_dataset = self.data.sel(object="planet", **self.base_sel)
         return system_dataset
 
-    def draw_planet(self, planet_ind, animation_value, animation_key):
+    def draw_planet(self, planet_ind):
         planet = self.system.planets[planet_ind]
-        planet_dataset = self.get_planet_da(planet_ind)
+        plan_sel = {"object": "planet", "index": planet_ind}
 
         # Plot the planet
-        self.generic_plot(
-            planet_dataset,
-            animation_value,
-            animation_key,
-            plot_kwargs=planet.plot_kwargs,
-        )
-        self.ax.set_title(f"{planet.plot_kwargs['s']}")
+        planet_context = self.state.context_sel(extra_sel=plan_sel)
+        planet_dataset = self.data.sel(**planet_context)
+        self.generic_plot(data=planet_dataset, plot_kwargs=planet.plot_kwargs)
+
+        # Add trail
         if self.planet_params.get("add_trail"):
             # Add a dashed line behind the planet
+            trail_sel = self.state.context_sel(
+                extra_sel=plan_sel, extra_strategies={"time": "Cumulative"}
+            )
+            trail_dataset = self.data.sel(**trail_sel)
+            trail_kwargs = {"color": "w", "linestyle": "dashed", "alpha": 0.5}
             self.generic_plot(
-                planet_dataset,
-                animation_value,
-                animation_key,
-                plot_method="plot",
-                animation_kwargs={"animation_style": "Cumulative"},
-                plot_kwargs={"color": "w", "linestyle": "dashed", "alpha": 0.5},
+                data=trail_dataset, plot_method="plot", plot_kwargs=trail_kwargs
             )
 
+        # Project onto the 3d axes
         if self.planet_params.get("project"):
-            point_projects = self.planet_params["project"].get("point")
+            # Project planet positions as a trail
             trail_projects = self.planet_params["project"].get("trail")
-            if point_projects is not None:
-                for ax_letter in point_projects:
-                    self.project_trail(
-                        planet_dataset, animation_value, animation_key, ax_letter
-                    )
             if trail_projects is not None:
                 for ax_letter in trail_projects:
-                    self.project_trail(
-                        planet_dataset, animation_value, animation_key, ax_letter
-                    )
+                    self.project("trail", ax_letter, extral_sel=plan_sel)
+
+            # Project planet as a point
+            point_projects = self.planet_params["project"].get("point")
+            if point_projects is not None:
+                for ax_letter in point_projects:
+                    self.project("point", ax_letter, extral_sel=plan_sel)
+
+    def project(self, type, ax_letter, extra_sel={}, plot_kwargs=None):
+        min_value = self.ax_kwargs["lims"][ax_letter][0]
+        default_plot_kwargs = {"zs": min_value, "zdir": ax_letter, "alpha": 0.1}
+        if plot_kwargs is not None:
+            default_plot_kwargs.update(plot_kwargs)
+
+        plot_kwargs = copy.deepcopy(default_plot_kwargs)
+        if type == "trail":
+            plot_kwargs["linestyle"] = "-"
+            plot_kwargs["color"] = "w"
+            strategy = {"time": "Cumulative"}
+            method = "plot"
+        elif type == "point":
+            plot_kwargs["facecolor"] = "grey"
+            plot_kwargs["edgecolor"] = "grey"
+            strategy = {"time": "Value"}
+            method = "scatter"
+        sel = self.state.context_sel(extra_sel=extra_sel, extra_strategies=strategy)
+        dataset = self.data.sel(**sel)
+        self.generic_plot(data=dataset, plot_method=method, plot_kwargs=plot_kwargs)
 
     def convert_units(self):
         self.data = misc.add_units(
@@ -346,8 +309,8 @@ class Orbit(Scatter):
         base_s = scipy.interpolate.interp1d(masses, sizes)(mass_to_use)
         return base_s
 
-    def adjust_settings(self, animation_value, animation_key):
-        super().generic_settings(animation_value, animation_key)
+    def adjust_settings(self):
+        super().generic_settings()
         if self.is_3d:
             self.darken_3d_background()
 
@@ -364,25 +327,9 @@ class Orbit(Scatter):
             data=data, equal=self.ax_kwargs.get("equal_lims")
         )
 
-    def compile_necessary_info(self, animation_values, animation_key, plot_calls):
-        data_args = (
-            self,
-            self.system,
-            self.orbit_params["propagation"],
-            self.orbit_params["ref_frame"],
-            self.orbit_params["convention"],
-        )
-        if animation_key == "time":
-            times = Time(animation_values)
-        else:
-            raise NotImplementedError(
-                "WHAT ARE YOU ANIMATING AN ORBIT IN OTHER THAN TIME? Sorry, it's late."
-            )
-        if Orbit in plot_calls:
-            plot_calls[Orbit]["args"][1].append(data_args)
-        else:
-            plot_calls[Orbit] = {"args": [times, [data_args]], "kwargs": {}}
-        return plot_calls
+    def check_valid_context(self, fig_context):
+        valid = fig_context["time"] in self.data["time"]
+        return valid
 
     def get_dist_attrs(self, system, lists=True):
         if lists:
@@ -391,16 +338,8 @@ class Orbit(Scatter):
             dist_attrs = {"name": system.star.name, "origin": system.origin}
         return dist_attrs
 
-    def generate_data(self, animation_values, animation_key):
-        if animation_key == "time":
-            times = Time(animation_values)
-        else:
-            raise NotImplementedError(
-                (
-                    "WHAT ARE YOU ANIMATING AN ORBIT IN OTHER THAN TIME?"
-                    " Sorry, it's late."
-                )
-            )
+    def generate_data(self):
+        times = self.gen_data["time"]
         self.data = self.system.propagate(
             times,
             prop=self.orbit_params["propagation"],
@@ -408,108 +347,6 @@ class Orbit(Scatter):
             convention=self.orbit_params["convention"],
             clean=True,
         )
+
+    def process_data(self):
         self.convert_units()
-        # Create the base dataset
-        # all_dist_attrs = {"name": [], "origin": []}
-        # for (plot, system, prop, ref_frame, convention) in all_orbit_args:
-        #     _dist_attrs = plot.get_dist_attrs(system, lists=False)
-        #     for key, val in _dist_attrs.items():
-        #         all_dist_attrs[key].append(val)
-
-        # obs_ds = system.create_dataset(times)
-        # # obs_ds = obs_ds.expand_dims(all_dist_attrs)
-        # for orbit_args in all_orbit_args:
-        #     orbit_plot, system, prop, ref_frame, convention = orbit_args
-        #     dist_attrs = orbit_plot.get_dist_attrs(system)
-        #     # if obs_ds is None:
-        #     #     obs_ds = system.propagate(
-        #     #         times,
-        #     #         prop=prop,
-        #     #         ref_frame=ref_frame,
-        #     #         convention=convention,
-        #     #     )
-        #     #     breakpoint()
-
-        #     # else:
-        #     if np.all(np.isnan(obs_ds["x"].sel(prop=prop))):
-        #         _obs_ds = system.propagate(
-        #             times,
-        #             # ds=obs_ds,
-        #             prop=prop,
-        #             ref_frame=ref_frame,
-        #             convention=convention,
-        #         )
-        #     else:
-        #         _obs_ds = system.convert_to_frame(
-        #             obs_ds,
-        #             prop=prop,
-        #             ref_frame=ref_frame,
-        #             convention=convention,
-        #         )
-        #     _obs_ds = orbit_plot.convert_units(_obs_ds)
-        #     # _obs_ds = _obs_ds.expand_dims(dist_attrs)
-        #     merged_ds = xr.merge([obs_ds, _obs_ds])
-        #     # Update values only where they are NaN in dataset
-        #     for var in obs_ds.data_vars:
-        #         # Check if the variable is present in both datasets
-        #         if var in _obs_ds.data_vars:
-        #             # Use np.where to update only NaN values
-        #             merged_ds[var].values = np.where(
-        #                 np.isnan(obs_ds[var].values),
-        #                 _obs_ds[var].values,
-        #                 obs_ds[var].values,
-        #             )
-        #     obs_ds = merged_ds
-        # obs_ds = orbit_plot.convert_units(obs_ds)
-        # return obs_ds
-
-    # def generate_dataset(self, dataset, times, orbit_args):
-    #     """
-    #     Adds the x, y, z coordinates for the planets to the dataset
-    #     """
-    #     # times = dataset["time"]
-    #     # Check for data of all planets that should be plotted
-    #     orbit_plot, system, prop, ref_frame, convention = orbit_args
-
-    #     if dataset is None:
-    #         _da = system.propagate(
-    #             times,
-    #             prop=prop,
-    #             ref_frame=ref_frame,
-    #             convention=convention,
-    #         )
-    #     else:
-    #         if np.all(
-    #             np.isnan(dataset["x"].sel(prop=self.orbit_params["propagation"]))
-    #         ):
-    #             _da = system.propagate(
-    #                 times,
-    #                 ds=dataset,
-    #                 prop=prop,
-    #                 ref_frame=ref_frame,
-    #                 convention=convention,
-    #             )
-    #         else:
-    #             _da = self.system.convert_to_frame(
-    #                 dataset,
-    #                 prop=prop,
-    #                 ref_frame=ref_frame,
-    #                 convention=convention,
-    #             )
-    #     # # Update values only where they are NaN in dataset
-    #     # merged_ds = xr.merge([dataset, _da])
-    #     # for var in dataset.data_vars:
-    #     #     # Check if the variable is present in both datasets
-    #     #     if var in _da.data_vars:
-    #     #         # Use np.where to update only NaN values
-    #     #         merged_ds[var].values = np.where(
-    #     #             np.isnan(dataset[var].values),
-    #     #             _da[var].values,
-    #     #             dataset[var].values,
-    #     #         )
-    #     # dataset = merged_ds
-    #     # dataset = dataset.update(_da)
-    #     breakpoint()
-    #     dataset = orbit_plot.convert_units(dataset)
-
-    #     return dataset
