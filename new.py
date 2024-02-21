@@ -22,7 +22,9 @@ from pleaserender.exoplanet import ObservationFrames, Orbit, SpectralCube
 plt.style.use("dark_background")
 
 # Create some simple data for the plots
-times = Time(np.linspace(2000, 2005, 10), format="decimalyear")
+start_time = 2000
+end_time = 2002
+times = Time(np.linspace(start_time, end_time, 200), format="decimalyear")
 
 # Input files
 coronagraph1_dir = Path("input/coronagraphs/LUVOIR-B-VC6_timeseries/")
@@ -71,7 +73,7 @@ observing_scenario = ObservingScenario(obs_scen)
 obs1 = Observation(coro1, system, observing_scenario, logging_level="WARNING")
 
 
-obs_times = Time(np.linspace(2000, 2005, 1), format="decimalyear")
+obs_times = Time(np.linspace(start_time, end_time, 2), format="decimalyear")
 generation_data = {"start_time": obs_times}
 obs = ObsPlot(obs1, gen_data=generation_data, imaging_params={"plane": "coro"})
 frames = ObservationFrames(
@@ -82,37 +84,28 @@ bandpass_plot = Bandpass(bandpass, obs=obs1)
 plot3d = Orbit(
     system,
     gen_data={"time": times},
-    orbit_params={
-        "ref_frame": "helio-sky",
-        "propagation": "nbody",
-        "unit": u.AU,
-    },
+    orbit_params={"ref_frame": "helio-sky", "propagation": "nbody", "unit": u.AU},
 )
 plot2d = Orbit(
     system,
     gen_data={"time": times},
     plane_2d="z",
-    orbit_params={
-        "ref_frame": "helio-sky",
-        "propagation": "nbody",
-        "unit": u.AU,
-    },
+    orbit_params={"ref_frame": "helio-sky", "propagation": "nbody", "unit": u.AU},
 )
 
 # Create a figure and add the plots
 figure_kwargs = {"figsize": (10, 10), "layout": None}
 main_figure = Figure(fig_kwargs=figure_kwargs, ncols=3, nrows=2)
-# animation_info = {"time": {"method": "value", "initial": times[0]}, "frame": None}
+# main_figure = Figure(fig_kwargs=figure_kwargs, ncols=2)
 levels = {0: ["start_time"], 1: ["time"], 2: ["spectral_wavelength(nm)"]}
 main_figure.please_set_animation_levels(levels)
-# main_figure.please_set_secondary_animation_keys(["frame"])
 
 main_figure.please_add_plot(obs)
 main_figure.please_add_plot(frames, col=1, shared_plot_data=obs)
 main_figure.please_add_plot(spectra, col=2, shared_plot_data=obs)
-main_figure.please_add_plot(bandpass_plot, row=1, col=2, colspan=1, draw_with=spectra)
-# main_figure.please_add_plot(plot3d, row=1, col=0)
-# main_figure.please_add_plot(plot2d, row=1, col=1)
+main_figure.please_add_plot(bandpass_plot, row=1, col=2, draw_with=spectra)
+main_figure.please_add_plot(plot3d, row=1, col=0)
+main_figure.please_add_plot(plot2d, row=1, col=1, shared_plot_data=plot3d)
 
 
 # Set the animation values and then render
@@ -120,6 +113,3 @@ render_settings = {"animation_duration": 5, "framerate": 25}
 main_figure.please_render_video(
     Path("renders/new.mp4"), render_settings=render_settings
 )
-# main_figure.please_preview([-1])
-# main_figure.please_render_images(Path("renders/non_static_exposure"))
-# main_figure.please_render_images(Path("renders/exovista"))

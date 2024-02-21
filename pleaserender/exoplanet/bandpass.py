@@ -11,12 +11,10 @@ class Bandpass(Plot):
                 "x": "spectral_wavelength(nm)",
                 "y": "transmission",
             }
-        default_render_state_kwargs = {
-            "key_strategies": {"spectral_wavelength(nm)": "Cumulative"}
-        }
         if "render_state_kwargs" not in kwargs:
             kwargs["render_state_kwargs"] = {
-                "key_strategies": {"spectral_wavelength(nm)": "Cumulative"}
+                "key_strategies": {"spectral_wavelength(nm)": "Cumulative"},
+                "repeat": True,
             }
         super().__init__(**kwargs)
         self.bandpass = bandpass

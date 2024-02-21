@@ -42,25 +42,3 @@ class ObservationFrames(Image):
 
         super().__init__(observation, *args, **kwargs)
         self.observation = observation
-
-    # def get_frame_data(self):
-    #     # sel_call = copy.copy(self.state.context)
-    #     # for key, val in sel_call.items():
-    #     #     if key in self.cumulative_keys:
-    #     #         sel_call[key] = slice(None, val)
-    #     #     if key in self.sum_keys:
-    #     #         sel_call[key] = self.data.coords[key].values
-    #     # base_data = self.data.sel(**sel_call)
-    #     base_data = self.state.context_data()
-    #     photons = self.access_data(base_data)
-    #     # photons = self.process_photons(base_data)
-    #     return photons
-
-    # def process_photons(self, photons):
-    #     for key in self.cumulative_keys:
-    #         photons = photons.sum(key)
-    #     for key in self.sum_keys:
-    #         photons = photons.sum(key)
-
-    #     photons = photons[self.imsel].data
-    #     return photons

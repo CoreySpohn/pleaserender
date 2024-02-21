@@ -87,9 +87,8 @@ class Plot:
 
         self.base_sel = {}
 
-    def render(self, context):
+    def render(self):
         # Get the necessary values from the context
-        self.state.process_context(context)
         if self.state.redraw:
             self.ax.clear()
             self.draw_plot()
@@ -212,23 +211,6 @@ class Plot:
                 frame_view["elev"] = 90
         return frame_view
 
-    def verify_data(self, animation_values, animation_key):
-        """
-        Method to check if all the data required for the plot exists.
-        Args:
-            # dataset (xr.Dataset):
-            #     Dataset containing the data and coordinates
-            animation_values (numpy.ndarray):
-                List of values for the animation
-            animation_key (str):
-                Key for the animation values in the plot object's dataframe
-        """
-        animation_data = self.data[animation_key].values
-
-        # Check if each element in animation_values is in animation_data
-        all_values_present = np.isin(animation_values, animation_data).all()
-        return all_values_present
-
     def generate_data(self):
         """
         Method to generate all the data required. Not implemented in the
@@ -237,6 +219,13 @@ class Plot:
         raise NotImplementedError(
             "generate_data method must be implemented by plot/ classes."
         )
+
+    def process_data(self):
+        """
+        Method to process the data required to plot. Not implemented in the
+        core classes.
+        """
+        return
 
     def create_axes_config(self):
         """
@@ -314,58 +303,6 @@ class Plot:
         set_ticks(np.arange(val0, valf + dval / 4, dval))
         if use_minor:
             set_ticks(np.arange(val0 + dval / 2, valf + dval / 4, dval), minor=True)
-
-    def project_point(
-        self,
-        data,
-        ax_letter,
-        object,
-        projection_kwargs=None,
-    ):
-        min_value = self.ax_kwargs["lims"][ax_letter][0]
-        _axis_keys = ["x", "y", "z"]
-        _axis_keys.remove(ax_letter)
-        axis_keys = {key: key for key in _axis_keys}
-        default_projection_kwargs = {"zs": min_value, "zdir": ax_letter, "alpha": 0.1}
-        if projection_kwargs is not None:
-            default_projection_kwargs.update(projection_kwargs)
-        # Plot the planet's position with a marker
-        position_kwargs = copy.deepcopy(object.plot_kwargs)
-        position_kwargs.update(default_projection_kwargs)
-        position_kwargs["facecolor"] = "grey"
-        position_kwargs["edgecolor"] = "grey"
-        self.generic_plot(
-            data=data,
-            axis_keys=axis_keys,
-            plot_method="scatter",
-            animation_kwargs={"animation_style": "Single point"},
-            plot_kwargs=position_kwargs,
-        )
-
-    def project_trail(
-        self,
-        data,
-        ax_letter,
-        projection_kwargs=None,
-    ):
-        min_value = self.ax_kwargs["lims"][ax_letter][0]
-        _axis_keys = ["x", "y", "z"]
-        _axis_keys.remove(ax_letter)
-        axis_keys = {key: key for key in _axis_keys}
-        default_projection_kwargs = {"zs": min_value, "zdir": ax_letter, "alpha": 0.1}
-        if projection_kwargs is not None:
-            default_projection_kwargs.update(projection_kwargs)
-        # Project the planet's trail
-        projection_trail_kwargs = copy.deepcopy(default_projection_kwargs)
-        projection_trail_kwargs["linestyle"] = "-"
-        projection_trail_kwargs["color"] = "w"
-        self.generic_plot(
-            data=data,
-            axis_keys=axis_keys,
-            plot_method="plot",
-            animation_kwargs={"animation_style": "Cumulative"},
-            plot_kwargs=projection_trail_kwargs,
-        )
 
     def create_render_state(self, levels):
         self.state = PlotRenderState(

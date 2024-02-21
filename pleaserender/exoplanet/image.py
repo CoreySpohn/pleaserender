@@ -94,27 +94,6 @@ class Image(Plot):
         else:
             self.skipna = False
 
-    def compile_necessary_info(self, animation_values, animation_key, plot_calls):
-        base_observation = Observation(
-            self.coronagraph,
-            self.system,
-            self.observing_scenario,
-            logging_level="WARNING",
-        )
-        if animation_key == "start_time":
-            times = Time(animation_values)
-            wavelengths = base_observation.central_wavelength.reshape(1)
-        elif animation_key == "central_wavelength":
-            times = base_observation.time.reshape(1)
-            wavelengths = animation_values
-        _observations = Observations(base_observation, times, wavelengths)
-        observations = set(_observations.create_observations())
-        if Image in plot_calls:
-            plot_calls[Image]["args"][0].update(observations)
-        else:
-            plot_calls[Image] = {"args": [observations], "kwargs": {}}
-        return plot_calls
-
     def get_observation_object(self, animation_value, animation_key):
         obs_scen = copy.deepcopy(self.observing_scenario)
         if animation_key == "start_time":
@@ -154,66 +133,17 @@ class Image(Plot):
             if val not in self.data[key]:
                 return False
         plot_data = self.get_plot_data(context)
-        # valid = np.all(~np.isnan(plot_data))
         valid = np.any(~np.isnan(plot_data))
-        # if not valid:
-        #     breakpoint()
-        # try:
-        #     other = self.state.context["time"] == self.state.key_values["time"][-1]
-        # except:
-        #     other = False
-        # if other and valid:
-        #     breakpoint()
-        # print(f"Image: {valid}")
+        # Check if the start time is after the time
+        if "start_time" in context and "time" in context:
+            exposure_start_time = Time(context["start_time"])
+            exposure_end_time = exposure_start_time + self.observation.exposure_time
+            valid_time = exposure_start_time <= context["time"] <= exposure_end_time
+            valid = valid and valid_time
         return valid
 
     def access_data(self, data):
         return data[self.imsel].data
-
-    # def get_plot_data(self, data=None, axis_keys=None):
-    #     """
-    #     Method to get the data required to plot. Not implemented in the core classes.
-    #     """
-    #     data = self.state.context_data()
-
-    #     data = self.get_frame_data()
-    #     return [data]
-
-    def get_frame_data(self):
-        # sel_call = copy.copy(self.state.context)
-        # base_data = self.data.sel(**sel_call)
-        base_data = self.state.context_data()
-        photons = self.access_data(base_data)
-        return photons
-
-    def create_sel_call(self, obs, necessary_dims):
-        sel_call = {}
-        if self.imaging_params["plane"] == "coro":
-            sel_call["xpix(coro)"] = np.arange(obs.coronagraph.npixels)
-            sel_call["ypix(coro)"] = np.arange(obs.coronagraph.npixels)
-        elif self.imaging_params["plane"] == "det":
-            sel_call["xpix(det)"] = np.arange(obs.detector_shape[0])
-            sel_call["ypix(det)"] = np.arange(obs.detector_shape[1])
-        else:
-            raise NotImplementedError("Only coro and det planes are implemented.")
-        for dim in necessary_dims:
-            val = getattr(obs, dim)
-            if isinstance(val, u.Quantity):
-                val = val.value
-            elif isinstance(val, Time):
-                val = val.datetime64
-            sel_call[dim] = val
-        return sel_call
-
-    def process_photons(self, photons):
-        return photons[self.imsel].data
-
-    def add_extra_sel_call(self, sel_call, obs, animation_value, animation_key):
-        """
-        Add any additional selection calls to the sel_call dictionary. This method
-        should be overridden by subclasses to add any additional selection calls
-        """
-        return sel_call
 
     def ax_lims_helper(self, necessary_axes, data=None, equal=False):
         if self.imaging_params["plane"] == "coro":

@@ -2,7 +2,8 @@ import numpy as np
 
 
 class PlotRenderState:
-    def __init__(self, required_keys, base_levels, plot, key_strategies=None, draw_with=None):
+    def __init__(self, required_keys, base_levels, plot, key_strategies=None,
+                 draw_with=None, repeat=False):
         """
         The PlotRenderState class represents the state of a Plot in its render
         process and handles comparisons between different PlotRenderStates.
@@ -18,6 +19,8 @@ class PlotRenderState:
         self.key_levels = {}
         self.base_sel = plot.base_sel
         self.draw_with = draw_with
+        self.finished = False
+        self.repeat = repeat
 
         # Sort the levels of the required keys based on the base_levels
         for level, level_keys in base_levels.items():
@@ -28,7 +31,6 @@ class PlotRenderState:
 
         # Get the initial values of the coordinates
         initial_coords = plot.data.coords
-        self.finished = False
         self.key_values = {
             key: initial_coords[key].values for key in self.required_keys
         }
@@ -45,6 +47,10 @@ class PlotRenderState:
             self.key_strategies.update(key_strategies)
 
     def process_context(self, fig_context):
+        # Check if the plot is finished
+        if self.finished:
+            self.redraw = False
+            return
 
         # Check if the context is a valid combination for the plot
         valid_context = self.plot.check_valid_context(fig_context)
@@ -72,6 +78,13 @@ class PlotRenderState:
         # Change the context and mark for redraw
         self.context = _context
         self.redraw = True
+
+        # Check if the plot is finished
+        is_last_context = all(
+                self.context[key] == self.key_values[key][-1] 
+                for key in self.required_keys
+                        )
+        self.finished = is_last_context and not self.repeat
 
     def extract_plot_context(self, fig_context):
         plot_context = {key: fig_context[key] for key in self.required_keys}

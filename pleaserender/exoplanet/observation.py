@@ -1,3 +1,6 @@
+import numpy as np
+from astropy.time import Time
+
 from pleaserender.exoplanet import Image
 
 

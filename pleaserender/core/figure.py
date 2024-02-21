@@ -37,8 +37,6 @@ class Figure:
         # List to store subfigures
         self.subfigures = []
 
-        # self.dataset = None
-
         self.plot_calls = {}
         self.plots_by_type = {}
 
@@ -74,7 +72,7 @@ class Figure:
             plot.data = dataset
         plot.shared_plot_data = shared_plot_data
         self.plots.append(plot)
-        if draw_with is not None:
+        if draw_with is None:
             self.primary_plots.append(plot)
         else:
             self.secondary_plots.append(plot)
@@ -92,17 +90,6 @@ class Figure:
         for level, level_keys in levels.items():
             for level_key in level_keys:
                 self.key_levels[level_key] = level
-        # default_animation_info = {"method": "index", "initial": 0}
-        # self.animation_info = {}
-        # for key, value in animation_info.items():
-        #     self.animation_info[key] = copy.copy(default_animation_info)
-        #     if value is not None:
-        #         self.animation_info[key].update(value)
-
-        # # Animation order defines how we are going to iterate over the data
-        # self.animation_order = []
-        # for key in animation_info.keys():
-        #     self.animation_order.append(key)
 
     def please_preview(self, frame):
         # Create figure (and all subfigures)
@@ -160,23 +147,9 @@ class Figure:
         self.render_setup()
         self.plots = self.collect_plots(self.plots)
         self.subfigures = self.collect_subfigures(self.subfigures)
-        # times = Time(np.linspace(2000, 2001, 4), format="decimalyear")
-        # levels = {0: ["time"], 1: ["frame"]}
-        # keys = ["time", "frame"]
-
-        # self.state = AnimationRenderState(levels)
-        # state1 = PlotRenderState(keys, levels, {"time": times[0], "frame": 0})
-        # state2 = PlotRenderState(keys, levels, {"time": times[0], "frame": 1})
-        # state3 = PlotRenderState(keys, levels, {"time": times[1], "frame": 0})
-        # state4 = PlotRenderState(["time"], levels, {"time": times[0]})
 
         with writer.saving(self.fig, save_path, 300):
             self.render(writer)
-        # with writer.saving(self.fig, save_path, len(self.animation_values)):
-        # anim = FuncAnimation(self.fig, self.render, frames=self.animation_values)
-        # anim.save(save_path, **save_settings)
-
-        # self.pbar.close()
 
     def collect_plots(self, plots):
         for subfigure in self.subfigures:
@@ -207,11 +180,10 @@ class Figure:
             if self.finished:
                 return
 
-            for plot in self.primary_plots:
-                plot.render(self.context)
-            for plot in self.secondary_plots:
-                plot.render(self.context)
-            print(f"Rendering {self.context}")
+            for plot in self.plots:
+                plot.render()
+            print(f"Rendering frame {self.context}")
+
             writer.grab_frame()
 
     def get_next_context(self):
@@ -220,7 +192,8 @@ class Figure:
             # Dynamically generate all_key_vals and initialize context if it's
             # the first call
             self.context = self.get_first_context(all_key_vals)
-            if self.check_valid_context_for_any_plot(self.context):
+            any_redraw = self.check_any_redraws()
+            if any_redraw:
                 # First context is valid, return
                 return self.context
 
@@ -236,9 +209,10 @@ class Figure:
                     if current_index + 1 < len(all_key_vals[key]):
                         key_val = all_key_vals[key][current_index + 1]
                         self.context[key] = key_val
-                        print(f"Checking {key}:{key_val} from Figure")
-                        if self.check_valid_context_for_any_plot(self.context):
-                            # Valid context found
+                        # Check if anything needs to be redrawn
+                        any_redraw = self.check_any_redraws()
+                        if any_redraw:
+                            # Redraw needed, return context
                             return self.context
                         # Break out of the inner loop to reset context in outer
                         # loop if needed
@@ -278,21 +252,13 @@ class Figure:
         context = {k: v[0] for k, v in all_key_vals.items()}
         return context
 
-    def check_valid_context_for_any_plot(self, context):
-        # Check if the context is valid for at least one plot
-        valid = any(plot.check_valid_context(context) for plot in self.primary_plots)
-        # print(f"Figure: {valid}")
-        return valid
-
-    def clear(self):
-        # Clear plots in the subfigures first
-        for subfigure in self.subfigures:
-            # Recursive call for subfigures
-            subfigure.clear()
-
-        # Clear plots in the current figure
-        for plot in self.plots:
-            plot.ax.clear()
+    def check_any_redraws(self):
+        for plot in self.primary_plots:
+            plot.state.process_context(self.context)
+        for plot in self.secondary_plots:
+            plot.state.process_context(self.context)
+        any_redraw = any(plot.state.redraw for plot in self.plots)
+        return any_redraw
 
     def generate_data(self):
         for subfigure in self.subfigures:
@@ -305,6 +271,7 @@ class Figure:
                 plot.data = plot.shared_plot_data.data
             else:
                 plot.generate_data()
+            plot.process_data()
             plot.get_required_keys()
             plot.create_render_state(self.levels)
 
