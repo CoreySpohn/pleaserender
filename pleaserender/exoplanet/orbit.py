@@ -73,6 +73,7 @@ class Orbit(Scatter):
         default_animation_kwargs = {
             "animation_style": "Single point",
             "rotate": {"azim": (25, 65)},
+            "title_key": "time",
         }
         if kwargs.get("animation_kwargs") is not None:
             default_animation_kwargs.update(
@@ -88,6 +89,9 @@ class Orbit(Scatter):
         if kwargs.get("ax_kwargs") is not None:
             default_ax_kwargs.update(kwargs.get("ax_kwargs"))
         kwargs["ax_kwargs"] = default_ax_kwargs
+
+        if "auto_title" not in kwargs["ax_kwargs"]:
+            kwargs["ax_kwargs"]["auto_title"] = True
 
         super().__init__(**kwargs)
         # Create a copy of the system so we don't modify the original and we
