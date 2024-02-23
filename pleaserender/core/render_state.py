@@ -2,8 +2,15 @@ import numpy as np
 
 
 class PlotRenderState:
-    def __init__(self, required_keys, base_levels, plot, key_strategies=None,
-                 draw_with=None, repeat=False):
+    def __init__(
+        self,
+        required_keys,
+        base_levels,
+        plot,
+        key_strategies=None,
+        draw_with=None,
+        repeat=False,
+    ):
         """
         The PlotRenderState class represents the state of a Plot in its render
         process and handles comparisons between different PlotRenderStates.
@@ -52,6 +59,9 @@ class PlotRenderState:
             self.redraw = False
             return
 
+        # Solve for dependent context values
+        fig_context = self.plot.add_dependent_context(fig_context.copy())
+
         # Check if the context is a valid combination for the plot
         valid_context = self.plot.check_valid_context(fig_context)
         if not valid_context:
@@ -64,7 +74,7 @@ class PlotRenderState:
         if not new:
             self.redraw = False
             return
-        
+
         if self.draw_with is not None:
             # If this plot is drawn with another plot, then we need to check if
             # the other plot has been redrawn
@@ -81,13 +91,20 @@ class PlotRenderState:
 
         # Check if the plot is finished
         is_last_context = all(
-                self.context[key] == self.key_values[key][-1] 
-                for key in self.required_keys
-                        )
+            self.context[key] == self.key_values[key][-1] for key in self.required_keys
+        )
         self.finished = is_last_context and not self.repeat
 
     def extract_plot_context(self, fig_context):
-        plot_context = {key: fig_context[key] for key in self.required_keys}
+        fig_context = self.plot.add_dependent_context(fig_context.copy())
+
+        # This fails when the add_dependent_context can't add the required context
+        # because it doesn't have data for the given context
+        has_all_keys = all(key in fig_context for key in self.required_keys)
+        if has_all_keys:
+            plot_context = {key: fig_context[key] for key in self.required_keys}
+        else:
+            return None
         return plot_context
 
     def is_new_context(self, fig_context):

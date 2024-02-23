@@ -23,12 +23,12 @@ plt.style.use("dark_background")
 
 # Create some simple data for the plots
 start_time = 2000
-end_time = Time(2000, format="decimalyear") + 30 * u.day
+end_time = 2002
 # Orbit plot data
-times = Time(np.linspace(start_time, end_time.decimalyear, 100), format="decimalyear")
+times = Time(np.linspace(start_time, 2002.5, 200), format="decimalyear")
 # Image plot data
 # obs_times = Time(np.linspace(start_time, end_time, 1), format="decimalyear")
-obs_times = Time(np.linspace(start_time, start_time, 1), format="decimalyear")
+obs_times = Time(np.linspace(start_time, end_time, 5), format="decimalyear")
 generation_data = {"start_time": obs_times}
 
 # Input files
@@ -58,12 +58,12 @@ obs_scen = {
     "central_wavelength": wavelength,
     "start_time": times[0],
     "exposure_time": 30 * u.day,
-    "frame_time": 3 * u.day,
+    "frame_time": 15 * u.day,
     "include_star": False,
     "include_planets": True,
     "include_disk": False,
     "bandpass": bandpass,
-    "spectral_resolution": 100,
+    "spectral_resolution": 50,
     # "return_frames": True,
     "return_frames": True,
     "return_spectrum": True,
@@ -78,11 +78,15 @@ observing_scenario = ObservingScenario(obs_scen)
 obs1 = Observation(coro1, system, observing_scenario, logging_level="WARNING")
 
 
-obs = ObsPlot(obs1, gen_data=generation_data, imaging_params={"plane": "coro"})
-frames = ObservationFrames(
-    obs1, gen_data=generation_data, imaging_params={"plane": "coro"}
+img_params = {"plane": "coro", "unit": u.arcsec}
+obs = ObsPlot(obs1, gen_data=generation_data, imaging_params=img_params)
+# frames = ObservationFrames(
+#     obs1, gen_data=generation_data, imaging_params={"plane": "coro"}
+# )
+frames = SpectralCube(
+    obs1, cumulative=True, gen_data=generation_data, imaging_params=img_params
 )
-spectra = SpectralCube(obs1, gen_data=generation_data, imaging_params={"plane": "coro"})
+spectra = SpectralCube(obs1, gen_data=generation_data, imaging_params=img_params)
 bandpass_plot = Bandpass(bandpass, obs=obs1)
 plot3d = Orbit(
     system,
@@ -106,14 +110,14 @@ plot2d = Orbit(
         "pixel_scale": obs_scen["detector_pixel_scale"],
         "distance": 10 * u.pc,
     },
-    ax_kwargs={"lims": {"x": [-0.3, 0.3], "y": [-0.3, 0.3]}, "aspect": "equal"},
+    ax_kwargs={"lims": {"x": [-0.4, 0.4], "y": [-0.4, 0.4]}, "aspect": "equal"},
 )
 
 # Create a figure and add the plots
 figure_kwargs = {"figsize": (10, 10), "layout": None}
 main_figure = Figure(fig_kwargs=figure_kwargs, ncols=3, nrows=2)
 # main_figure = Figure(fig_kwargs=figure_kwargs, ncols=2)
-levels = {0: ["start_time"], 1: ["time"], 2: ["spectral_wavelength(nm)"]}
+levels = {1: ["time"], 2: ["spectral_wavelength(nm)"]}
 
 main_figure.please_set_animation_levels(levels)
 

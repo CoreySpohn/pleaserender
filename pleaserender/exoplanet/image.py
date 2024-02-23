@@ -1,10 +1,13 @@
 import copy
 
 import astropy.units as u
+import coronagraphoto.util as cu
 import numpy as np
 import xarray as xr
 from astropy.time import Time
 from coronagraphoto import Observation, Observations
+from exoverses.util import misc
+from lod_unit import lod, lod_eq
 from matplotlib.colors import LogNorm
 from tqdm import tqdm
 
@@ -13,14 +16,8 @@ from pleaserender.core import Plot
 
 
 class Image(Plot):
-    def __init__(
-        self,
-        observation,
-        gen_data=None,
-        imaging_params=None,
-        **kwargs,
-    ):
-        default_imaging_params = {"object": "img", "plane": "coro"}
+    def __init__(self, observation, gen_data=None, imaging_params=None, **kwargs):
+        default_imaging_params = {"object": "img", "plane": "coro", "unit": u.pix}
         self.imaging_params = default_imaging_params
         if imaging_params is not None:
             self.imaging_params.update(imaging_params)
@@ -75,7 +72,6 @@ class Image(Plot):
         """
         Get the keys that are required to plot the data
         """
-        self.get_required_keys = []
         all_possible_keys = [
             "start_time",
             "time",
@@ -110,8 +106,13 @@ class Image(Plot):
         if plot_kwargs is None:
             plot_kwargs = self.plot_kwargs
         data = self.get_plot_data()
+        extent = self.get_extent()
         self.ax.imshow(
-            data, origin="lower", cmap="viridis", norm=LogNorm(vmin=0, vmax=1e5)
+            data,
+            extent=extent,
+            origin="lower",
+            cmap="viridis",
+            norm=LogNorm(vmin=0, vmax=1e5),
         )
 
     def get_plot_data(self, context=None):
@@ -125,10 +126,13 @@ class Image(Plot):
         for key in self.access_kwargs["sum_keys"]:
             if key in plot_data.dims and len(plot_data[key].shape) > 0:
                 plot_data = plot_data.sum(dim=key, skipna=self.skipna)
-        return plot_data[self.imsel].data
+        data = plot_data[self.imsel].data
+        return data
 
     def check_valid_context(self, fig_context):
         context = self.state.extract_plot_context(fig_context)
+        if context is None:
+            return False
         for key, val in context.items():
             if val not in self.data[key]:
                 return False
@@ -142,20 +146,69 @@ class Image(Plot):
             valid = valid and valid_time
         return valid
 
+    def add_dependent_context(self, context):
+        if "start_time" in self.required_keys and "time" in context:
+            obs_time = context["time"]
+            if obs_time not in self.data["time"]:
+                # If the observation time is not in the data, then the
+                # data has no corresponding start time
+                return context
+            # Get the start times based on the given context
+            start_times = self.data.sel(**context)["start_time"].values
+            after_start = start_times <= obs_time
+
+            # Get the end times based on the exposure time
+            end_times = Time(start_times) + self.observation.exposure_time
+            before_end = obs_time < end_times
+
+            # Find the start time that is after the observation time
+            start_time = Time(start_times[after_start & before_end]).datetime64
+            assert len(start_time) != 0, "No valid start times found"
+            assert len(start_time) < 2, (
+                "Multiple valid start times found. Check that the exposure time is less"
+                "than the time between observations"
+            )
+            context["start_time"] = start_time[0]
+        return context
+
     def access_data(self, data):
         return data[self.imsel].data
 
     def ax_lims_helper(self, necessary_axes, data=None, equal=False):
-        if self.imaging_params["plane"] == "coro":
-            xrange = [0, self.coronagraph.npixels]
-            yrange = [0, self.coronagraph.npixels]
-        elif self.imaging_params["plane"] == "det":
-            det_shape = self.observing_scenario.scenario["detector_shape"]
-            xrange = [0, det_shape[0]]
-            yrange = [0, det_shape[1]]
-        self.ax_kwargs["lims"]["x"] = util.calculate_axis_limits_and_ticks(
-            *xrange, exact=True
-        )
-        self.ax_kwargs["lims"]["y"] = util.calculate_axis_limits_and_ticks(
-            *yrange, exact=True
-        )
+        # if self.imaging_params["unit"] == u.pix:
+        #     if self.imaging_params["plane"] == "coro":
+        #         xrange = [0, self.coronagraph.npixels]
+        #         yrange = [0, self.coronagraph.npixels]
+        #     elif self.imaging_params["plane"] == "det":
+        #         det_shape = self.observing_scenario.scenario["detector_shape"]
+        #         xrange = [0, det_shape[0]]
+        #         yrange = [0, det_shape[1]]
+        # else:
+        #     xarr, yarr = cu.convert_pixels(
+        #         self.imaging_params["unit"], self.observation, plane="coro"
+        #     )
+        #     xarr = xarr.value
+        #     yarr = yarr.value
+        #     xrange = [xarr.min(), xarr.max()]
+        #     yrange = [yarr.min(), yarr.max()]
+        extent = self.get_extent()
+        xrange = [extent[0], extent[1]]
+        yrange = [extent[2], extent[3]]
+        self.ax_kwargs["lims"]["x"] = util.calculate_axis_limits_and_ticks(*xrange)
+        self.ax_kwargs["lims"]["y"] = util.calculate_axis_limits_and_ticks(*yrange)
+
+    def get_extent(self):
+        if self.imaging_params["unit"] == u.pix:
+            if self.imaging_params["plane"] == "coro":
+                extent = [0, self.coronagraph.npixels, 0, self.coronagraph.npixels]
+            elif self.imaging_params["plane"] == "det":
+                det_shape = self.observing_scenario.scenario["detector_shape"]
+                extent = [0, det_shape[0], 0, det_shape[1]]
+        else:
+            xarr, yarr = cu.convert_pixels(
+                self.imaging_params["unit"], self.observation, plane="coro"
+            )
+            xarr = xarr.value
+            yarr = yarr.value
+            extent = [xarr.min(), xarr.max(), yarr.min(), yarr.max()]
+        return extent

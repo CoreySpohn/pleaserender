@@ -150,6 +150,20 @@ class Plot:
         valid = [np.all(~np.isnan(data)) for data in plot_data]
         return np.all(valid)
 
+    def add_dependent_context(self, context):
+        """
+        Method to add dependent context to the context. This is used to add
+        context that is dependent on the context of the plot. For example, if
+        we have two different "time" keys ("start_time" and "time") where we can
+        solve for "start_time" if we have the "time" value.
+        Method must be implemented by the Plot.
+
+        Args:
+            context (dict):
+                The context to add dependent context to.
+        """
+        return context
+
     def adjust_settings(self):
         self.generic_settings()
 

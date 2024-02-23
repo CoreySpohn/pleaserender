@@ -293,12 +293,16 @@ class Figure:
             # if (self.shared_axes[plot]["x"]) or (self.shared_axes[plot]["y"]):
             plot.ax = self.fig.add_subplot(
                 gridspec.new_subplotspec((row, col), rowspan=rowspan, colspan=colspan),
-                sharex=self.shared_axes[plot]["sharex_plot"].ax
-                if self.shared_axes[plot]["x"]
-                else None,
-                sharey=self.shared_axes[plot]["sharey_plot"].ax
-                if self.shared_axes[plot]["y"]
-                else None,
+                sharex=(
+                    self.shared_axes[plot]["sharex_plot"].ax
+                    if self.shared_axes[plot]["x"]
+                    else None
+                ),
+                sharey=(
+                    self.shared_axes[plot]["sharey_plot"].ax
+                    if self.shared_axes[plot]["y"]
+                    else None
+                ),
                 projection=plot.projection,
             )
             plot.create_axes_config()
