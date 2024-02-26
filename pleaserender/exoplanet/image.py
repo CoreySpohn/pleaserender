@@ -175,22 +175,6 @@ class Image(Plot):
         return data[self.imsel].data
 
     def ax_lims_helper(self, necessary_axes, data=None, equal=False):
-        # if self.imaging_params["unit"] == u.pix:
-        #     if self.imaging_params["plane"] == "coro":
-        #         xrange = [0, self.coronagraph.npixels]
-        #         yrange = [0, self.coronagraph.npixels]
-        #     elif self.imaging_params["plane"] == "det":
-        #         det_shape = self.observing_scenario.scenario["detector_shape"]
-        #         xrange = [0, det_shape[0]]
-        #         yrange = [0, det_shape[1]]
-        # else:
-        #     xarr, yarr = cu.convert_pixels(
-        #         self.imaging_params["unit"], self.observation, plane="coro"
-        #     )
-        #     xarr = xarr.value
-        #     yarr = yarr.value
-        #     xrange = [xarr.min(), xarr.max()]
-        #     yrange = [yarr.min(), yarr.max()]
         extent = self.get_extent()
         xrange = [extent[0], extent[1]]
         yrange = [extent[2], extent[3]]
