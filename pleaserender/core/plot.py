@@ -307,7 +307,9 @@ class Plot:
                     #     self.ax_kwargs.get(f"{ax_letter}lim") is None
                     # ), f"lims and {ax_letter}lim cannot both be set."
         if self.animation_kwargs.get("title_key") is not None:
-            self.ax.set_title(self.create_auto_title())
+            if self.ax_kwargs.get("title") is None:
+                # self.ax_kwargs["title"] = self.create_auto_title()
+                self.ax.set_title(self.create_auto_title())
 
     def set_lims_and_ticks(self, val0, valf, dval, offset, ax_letter, use_minor=True):
         # for ax_letter in self.given_axis_keys:

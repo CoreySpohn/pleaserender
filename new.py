@@ -25,7 +25,7 @@ plt.style.use("dark_background")
 start_time = 2000
 end_time = 2002
 # Orbit plot data
-times = Time(np.linspace(start_time, 2002.5, 200), format="decimalyear")
+times = Time(np.linspace(start_time, 2002.5, 100), format="decimalyear")
 # Image plot data
 # obs_times = Time(np.linspace(start_time, end_time, 1), format="decimalyear")
 obs_times = Time(np.linspace(start_time, end_time, 5), format="decimalyear")
@@ -58,7 +58,7 @@ obs_scen = {
     "central_wavelength": wavelength,
     "start_time": times[0],
     "exposure_time": 30 * u.day,
-    "frame_time": 15 * u.day,
+    "frame_time": 2 * u.day,
     "include_star": False,
     "include_planets": True,
     "include_disk": False,
@@ -80,14 +80,14 @@ obs1 = Observation(coro1, system, observing_scenario, logging_level="WARNING")
 
 img_params = {"plane": "coro", "unit": u.arcsec}
 obs = ObsPlot(obs1, gen_data=generation_data, imaging_params=img_params)
-# frames = ObservationFrames(
-#     obs1, gen_data=generation_data, imaging_params={"plane": "coro"}
-# )
-frames = SpectralCube(
-    obs1, cumulative=True, gen_data=generation_data, imaging_params=img_params
+frames = ObservationFrames(
+    obs1, gen_data=generation_data, cumulative=True, imaging_params=img_params
 )
-spectra = SpectralCube(obs1, gen_data=generation_data, imaging_params=img_params)
-bandpass_plot = Bandpass(bandpass, obs=obs1)
+# frames = SpectralCube(
+#     obs1, cumulative=True, gen_data=generation_data, imaging_params=img_params
+# )
+# spectra = SpectralCube(obs1, gen_data=generation_data, imaging_params=img_params)
+# bandpass_plot = Bandpass(bandpass, obs=obs1)
 plot3d = Orbit(
     system,
     gen_data={"time": times},
@@ -115,7 +115,7 @@ plot2d = Orbit(
 
 # Create a figure and add the plots
 figure_kwargs = {"figsize": (10, 10), "layout": None}
-main_figure = Figure(fig_kwargs=figure_kwargs, ncols=3, nrows=2)
+main_figure = Figure(fig_kwargs=figure_kwargs, ncols=2, nrows=2)
 # main_figure = Figure(fig_kwargs=figure_kwargs, ncols=2)
 levels = {1: ["time"], 2: ["spectral_wavelength(nm)"]}
 
@@ -123,8 +123,8 @@ main_figure.please_set_animation_levels(levels)
 
 main_figure.please_add_plot(obs)
 main_figure.please_add_plot(frames, col=1, shared_plot_data=obs)
-main_figure.please_add_plot(spectra, col=2, shared_plot_data=obs)
-main_figure.please_add_plot(bandpass_plot, row=1, col=2, draw_with=spectra)
+# main_figure.please_add_plot(spectra, col=2, shared_plot_data=obs)
+# main_figure.please_add_plot(bandpass_plot, row=1, col=2, draw_with=spectra)
 main_figure.please_add_plot(plot3d, row=1, col=0)
 main_figure.please_add_plot(plot2d, row=1, col=1, shared_plot_data=plot3d)
 

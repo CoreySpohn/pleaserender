@@ -90,7 +90,10 @@ class Orbit(Scatter):
             default_ax_kwargs.update(kwargs.get("ax_kwargs"))
         kwargs["ax_kwargs"] = default_ax_kwargs
 
-        if "auto_title" not in kwargs["ax_kwargs"]:
+        if (
+            "auto_title" not in kwargs["ax_kwargs"]
+            and "title" not in kwargs["ax_kwargs"]
+        ):
             kwargs["ax_kwargs"]["auto_title"] = True
 
         super().__init__(**kwargs)
