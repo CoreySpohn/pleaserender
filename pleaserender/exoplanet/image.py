@@ -8,7 +8,7 @@ from astropy.time import Time
 from coronagraphoto import Observation, Observations
 from exoverses.util import misc
 from lod_unit import lod, lod_eq
-from matplotlib.colors import LogNorm
+from matplotlib.colors import LogNorm, Normalize
 from tqdm import tqdm
 
 from pleaserender import util
@@ -22,9 +22,6 @@ class Image(Plot):
         if imaging_params is not None:
             self.imaging_params.update(imaging_params)
         self.imsel = f"{self.imaging_params['object']}({self.imaging_params['plane']})"
-        # self.axis_keys = {
-        #     "img": f"{self.imaging_params['object']}({self.imaging_params['plane']})"
-        # }
 
         if kwargs.get("axis_keys") is None:
             kwargs["axis_keys"] = {
@@ -35,6 +32,18 @@ class Image(Plot):
             kwargs["ax_kwargs"] = {}
         if "auto_title" not in kwargs["ax_kwargs"]:
             kwargs["ax_kwargs"]["auto_title"] = True
+        if "aspect" not in kwargs["ax_kwargs"]:
+            kwargs["ax_kwargs"]["aspect"] = "equal"
+
+        # Set the default plot_kwargs
+        if not kwargs.get("plot_kwargs"):
+            kwargs["plot_kwargs"] = {}
+        if "cmap" not in kwargs["plot_kwargs"]:
+            kwargs["plot_kwargs"]["cmap"] = "viridis"
+        if "norm" not in kwargs["plot_kwargs"]:
+            kwargs["plot_kwargs"]["norm"] = Normalize(vmin=0, vmax=4e6)
+        if "origin" not in kwargs["plot_kwargs"]:
+            kwargs["plot_kwargs"]["origin"] = "lower"
 
         super().__init__(**kwargs)
 
@@ -107,13 +116,7 @@ class Image(Plot):
             plot_kwargs = self.plot_kwargs
         data = self.get_plot_data()
         extent = self.get_extent()
-        self.ax.imshow(
-            data,
-            extent=extent,
-            origin="lower",
-            cmap="viridis",
-            norm=LogNorm(vmin=0, vmax=1e5),
-        )
+        self.ax.imshow(data, extent=extent, **plot_kwargs)
 
     def get_plot_data(self, context=None):
         """

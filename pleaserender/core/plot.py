@@ -326,7 +326,35 @@ class Plot:
         )
 
     def create_auto_title(self):
-        key = self.animation_kwargs["title_key"]
-        val = self.state.context[key]
-        title = util.create_val_str(key, val)
+        """
+        Method to create the title of the plot based on the context, or from a
+        custom title_function. An example of a custom title function is:
+        ```
+        def title_gen(plot, plot_initialized):
+            if not plot_initialized:
+                title = "Exposure not started"
+            else:
+                key = plot.animation_kwargs["title_key"]
+                val = plot.state.context[key]
+                current_time = Time(val)
+                initial_time = Time(plot.data[key].values[0])
+                days_passed = (current_time - initial_time).to(u.d)
+                if days_passed.value >= 29.5:
+                    title = "Exposure complete"
+                else:
+                    title = f"Exposure in progress, {days_passed.value:.0f}/30 (day)"
+            return title
+        ```
+
+        """
+        has_custom_title = "title_function" in self.ax_kwargs.keys()
+        plot_state_initialized = self.state.context is not None
+        if has_custom_title:
+            title = self.ax_kwargs["title_function"](self, plot_state_initialized)
+        elif plot_state_initialized:
+            key = self.animation_kwargs["title_key"]
+            val = self.state.context[key]
+            title = util.create_val_str(key, val)
+        else:
+            title = ""
         return title
