@@ -15,7 +15,9 @@ def filter_data(dataset, animation_value, animation_key, animation_style):
             current_index = np.argmax(dataset[animation_key].values == animation_value)
             # current_index = dataset[animation_key].argmax()
             # min_index = 0  # Assuming 0 is the starting index in your dimension
-            return dataset.isel({animation_key:slice(max(0, current_index-9), current_index+1)})
+            return dataset.isel(
+                {animation_key: slice(max(0, current_index - 9), current_index + 1)}
+            )
 
             # if current_index - 10 > min_index:
             #     return dataset.where(
@@ -29,6 +31,7 @@ def filter_data(dataset, animation_value, animation_key, animation_style):
             #             dataset[animation_key].values <= current_index, drop=True
             #             )
 
+
 def calc_viewer_position(elev, azim, dist):
     """
     This is a simple function to calculate the viewer's position in Cartesian
@@ -39,11 +42,12 @@ def calc_viewer_position(elev, azim, dist):
     elev_rad = np.deg2rad(elev)
     azim_rad = np.deg2rad(azim)
 
-    x = dist*np.cos(elev_rad) * np.cos(azim_rad)
-    y = dist*np.cos(elev_rad) * np.sin(azim_rad)
-    z = dist*np.sin(elev)
+    x = dist * np.cos(elev_rad) * np.cos(azim_rad)
+    y = dist * np.cos(elev_rad) * np.sin(azim_rad)
+    z = dist * np.sin(elev)
 
     return u.Quantity([x, y, z])
+
 
 def get_nice_number(value, round=False):
     if value == 0:
@@ -75,6 +79,7 @@ def get_nice_number(value, round=False):
 
     return nice_fraction * 10**exponent
 
+
 def calculate_axis_limits_and_ticks(data_min, data_max, num_ticks=5, exact=False):
     range_span = get_nice_number(data_max - data_min, round=True)
     tick_spacing = get_nice_number(range_span / (num_ticks - 1), round=True)
@@ -87,6 +92,7 @@ def calculate_axis_limits_and_ticks(data_min, data_max, num_ticks=5, exact=False
     offset = 0.025 * tick_spacing
 
     return nice_min, nice_max, tick_spacing, offset
+
 
 def calc_object_viewer_vectors(dataset, current_ind, current_view, viewer_dist):
     # Calculate the viewer-origin vector
@@ -102,19 +108,20 @@ def calc_object_viewer_vectors(dataset, current_ind, current_view, viewer_dist):
                 dataset["y"][current_ind],
                 dataset["z"][current_ind],
             ]
-        )*u.m
+        )
+        * u.m
     )
 
     # Calculate the object-viewer vector
     r_ov = r_o - r_v
     return r_v, r_o, r_ov
 
+
 def calc_object_viewer_angle(r_o, r_ov):
     val = -np.dot(r_ov, r_o) / (np.linalg.norm(r_ov) * np.linalg.norm(r_o))
-    object_viewer_angle = np.arccos(
-        val
-    )
+    object_viewer_angle = np.arccos(val)
     return object_viewer_angle
+
 
 def calc_object_viewer_orth_dist(r_v, r_o):
     # Unit vector in the direction of r_vs
@@ -125,14 +132,16 @@ def calc_object_viewer_orth_dist(r_v, r_o):
     o_v_orth_dist = np.linalg.norm(r_v) - scalar_proj
     return o_v_orth_dist
 
+
 def create_title(title_dict, animation_key):
-    title = ''
+    title = ""
     for key, val in title_dict.items():
         if key == animation_key:
             continue
         else:
             title += f"{key}={val}, "
     return title[:-2]
+
 
 def create_val_str(key, val):
     if isinstance(val, np.datetime64):
