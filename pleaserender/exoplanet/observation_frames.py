@@ -11,7 +11,7 @@ class ObservationFrames(Image):
     def __init__(self, observation, cumulative=False, *args, **kwargs):
         all_keys = []
         sum_keys = []
-        if observation.return_spectrum:
+        if observation.settings.return_spectrum:
             all_keys.append("spectral_wavelength(nm)")
             sum_keys.append("spectral_wavelength(nm)")
 

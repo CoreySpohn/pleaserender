@@ -51,7 +51,8 @@ class Image(Plot):
         self.observation = observation
         self.system = observation.system
         self.coronagraph = observation.coronagraph
-        self.observing_scenario = observation.observing_scenario
+        self.observing_scenario = observation.scenario
+        self.settings = observation.settings
         self.plot_method = "imshow"
         self.name = "image"
 
@@ -60,8 +61,8 @@ class Image(Plot):
             "The gen_data dictionary must be provided if"
             " the data is not already provided."
         )
-        times = self.observation.start_time.reshape(1)
-        wavelengths = self.observation.central_wavelength.reshape(1)
+        times = self.observation.scenario.start_time.reshape(1)
+        wavelengths = self.observation.scenario.central_wavelength.reshape(1)
         has_start_time = "start_time" in self.gen_data
         has_wavelength = "central_wavelength" in self.gen_data
         assert (has_start_time and not has_wavelength) or (
@@ -106,7 +107,11 @@ class Image(Plot):
         elif animation_key == "central_wavelength":
             obs_scen.scenario["central_wavelength"] = animation_value
         obs = Observation(
-            self.coronagraph, self.system, obs_scen, logging_level="WARNING"
+            self.coronagraph,
+            self.system,
+            obs_scen,
+            self.settings,
+            logging_level="WARNING",
         )
         return obs
 
@@ -144,7 +149,9 @@ class Image(Plot):
         # Check if the start time is after the time
         if "start_time" in context and "time" in context:
             exposure_start_time = Time(context["start_time"])
-            exposure_end_time = exposure_start_time + self.observation.exposure_time
+            exposure_end_time = (
+                exposure_start_time + self.observation.scenario.exposure_time
+            )
             valid_time = exposure_start_time <= context["time"] <= exposure_end_time
             valid = valid and valid_time
         return valid
@@ -161,7 +168,7 @@ class Image(Plot):
             after_start = start_times <= obs_time
 
             # Get the end times based on the exposure time
-            end_times = Time(start_times) + self.observation.exposure_time
+            end_times = Time(start_times) + self.observation.scenario.exposure_time
             before_end = obs_time < end_times
 
             # Find the start time that is after the observation time
