@@ -5,16 +5,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 from astropy.time import Time
-from coronagraphoto import (coronagraph, observation, observations,
-                            observing_scenario, render_engine)
-from exoverses.base import Planet, Star, System
+from coronagraphoto import coronagraph, observing_scenario
 from exoverses.exovista import ExovistaSystem
-from synphot import Observation, SourceSpectrum, SpectralElement
-from synphot.models import (BlackBodyNorm1D, Box1D, Empirical1D, Gaussian1D,
-                            GaussianFlux1D)
+from synphot import SpectralElement
+from synphot.models import Gaussian1D
 
-from pleaserender.core import Figure, Plot, Scatter
-from pleaserender.exoplanet import Image, Orbit
+from pleaserender.core import Figure
+from pleaserender.exoplanet import Orbit
 
 plt.style.use("dark_background")
 
@@ -77,7 +74,7 @@ obs_scen = {
     "return_frames": False,
     "separate_sources": False,
     "wavelength_resolved_flux": False,
-    "wavelength_resolved_transmission": False
+    "wavelength_resolved_transmission": False,
     # "include_photon_noise": True,
 }
 observing_scenario = observing_scenario.ObservingScenario(obs_scen)

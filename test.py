@@ -1,13 +1,12 @@
-import copy
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+
 # import pandas as pd
 import xarray as xr
-from exoverses.exovista import ExovistaSystem
 
-from pleaserender.core import Figure, Plot, Scatter
+from pleaserender.core import Figure, Plot
 
 # Create some simple data for the plots
 t_values = np.linspace(0, 10, 100)

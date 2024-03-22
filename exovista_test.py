@@ -3,19 +3,12 @@ from pathlib import Path
 import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
-import xarray as xr
 from astropy.time import Time
-from coronagraphoto import (coronagraph, observation, observations,
-                            observing_scenario, render_engine)
-from exoverses.base import Planet, Star, System
+from coronagraphoto import coronagraph
 from exoverses.exovista import ExovistaSystem
-from synphot import Observation, SourceSpectrum, SpectralElement
-from synphot.models import (BlackBodyNorm1D, Box1D, Empirical1D, Gaussian1D,
-                            GaussianFlux1D)
-from tqdm import main
 
-from pleaserender.core import Figure, Plot, Scatter
-from pleaserender.exoplanet import Image, Orbit
+from pleaserender.core import Figure
+from pleaserender.exoplanet import Orbit
 
 plt.style.use("dark_background")
 

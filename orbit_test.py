@@ -1,12 +1,9 @@
 from pathlib import Path
 
-import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
-import xarray as xr
 from astropy.time import Time
-from coronagraphoto import coronagraph, observation
-from exoverses.base import Planet, Star, System
+from coronagraphoto import coronagraph
 from exoverses.exovista import ExovistaSystem
 
 from pleaserender.core import Figure
