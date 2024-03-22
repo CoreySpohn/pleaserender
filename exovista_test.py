@@ -6,7 +6,6 @@ import numpy as np
 from astropy.time import Time
 from coronagraphoto import coronagraph
 from exoverses.exovista import ExovistaSystem
-from keplertools.fun import calc_RV_from_time
 
 from pleaserender.core import Figure
 from pleaserender.exoplanet import Orbit
