@@ -38,27 +38,28 @@ class PlotObject:
         match animation_style:
             case "Cumulative":
                 return self.data.where(
-                        self.data[animation_key] <= animation_value, drop=True)
+                    self.data[animation_key] <= animation_value, drop=True
+                )
             case "Single point":
                 return self.data.where(
-                        self.data[animation_key] == animation_value, drop=True)
+                    self.data[animation_key] == animation_value, drop=True
+                )
             case "Trailing":
                 # Data of trailing 10 points
                 # Finding the index of the specified animation value
-                current_index = self.data[animation_key].argmax(dim='your_dimension')
+                current_index = self.data[animation_key].argmax(dim="your_dimension")
                 min_index = 0  # Assuming 0 is the starting index in your dimension
 
                 if current_index - 10 > min_index:
                     return self.data.where(
-                            (self.data[animation_key].dims[0] <= current_index) &
-                            (self.data[animation_key].dims[0] >= current_index - 10),
-                            drop=True
-                            )
+                        (self.data[animation_key].dims[0] <= current_index)
+                        & (self.data[animation_key].dims[0] >= current_index - 10),
+                        drop=True,
+                    )
                 else:
                     return self.data.where(
-                            self.data[animation_key].dims[0] <= current_index, drop=True
-                            )
-
+                        self.data[animation_key].dims[0] <= current_index, drop=True
+                    )
 
     # def get_data_rows(self, keys, axis_values, axis_name="t"):
     #     """

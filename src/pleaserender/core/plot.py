@@ -1,9 +1,6 @@
-import copy
 import inspect
 
-import astropy.units as u
 import numpy as np
-from astropy.time import Time
 
 import pleaserender.util as util
 
@@ -171,7 +168,7 @@ class Plot:
         # Evaulate any f-strings provided in ax_kwargs
         original_kwargs = {}
         for key, val in self.ax_kwargs.items():
-            if type(val) is str:
+            if isinstance(val, str):
                 if "animation_value" in val:
                     original_kwargs[key] = val
                     self.ax_kwargs[key] = eval(f"f{val}")

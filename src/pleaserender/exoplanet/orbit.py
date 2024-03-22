@@ -4,8 +4,6 @@ import astropy.units as u
 import exoverses.util.misc as misc
 import numpy as np
 import scipy
-import xarray as xr
-from astropy.time import Time
 
 import pleaserender.util as util
 from pleaserender.core import Scatter

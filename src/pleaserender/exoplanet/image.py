@@ -3,13 +3,9 @@ import copy
 import astropy.units as u
 import coronagraphoto.util as cu
 import numpy as np
-import xarray as xr
 from astropy.time import Time
 from coronagraphoto import Observation, Observations
-from exoverses.util import misc
-from lod_unit import lod, lod_eq
-from matplotlib.colors import LogNorm, Normalize
-from tqdm import tqdm
+from matplotlib.colors import Normalize
 
 from pleaserender import util
 from pleaserender.core import Plot
@@ -91,10 +87,6 @@ class Image(Plot):
         for key in all_possible_keys:
             if key in self.data.dims:
                 self.required_keys.append(key)
-        sum_time = (
-            "time" in self.access_kwargs["sum_keys"]
-            and "start_time" in self.required_keys
-        )
         if "start_time" in self.required_keys and "time" in self.required_keys:
             self.skipna = True
         else:

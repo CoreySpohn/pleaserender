@@ -1,15 +1,11 @@
-import copy
-import datetime
 from pathlib import Path
 
 import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
-import xarray as xr
 from astropy.time import Time
-from matplotlib.animation import FFMpegWriter, FuncAnimation
+from matplotlib.animation import FFMpegWriter
 from matplotlib.gridspec import GridSpec
-from tqdm import tqdm
 
 
 class Figure:
@@ -137,11 +133,6 @@ class Figure:
             bitrate=final_render_settings["bitrate"],
             extra_args=final_render_settings["extra_args"],
         )
-
-        save_settings = {
-            "dpi": final_render_settings["img_dpi"],
-            "writer": writer,
-        }
 
         # Create the figure (and all subfigures)
         self.render_setup()
