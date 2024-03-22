@@ -102,8 +102,8 @@ main_figure.please_set_animation_values(times, "time")
 # Add plots to the figures
 main_figure.please_add_plot(plot3d)
 main_figure.please_add_plot(plot2d, col=1)
-main_figure.please_add_plot(plot_image1, row=1)
-main_figure.please_add_plot(plot_image2, row=1, col=1)
+# main_figure.please_add_plot(plot_image1, row=1)
+# main_figure.please_add_plot(plot_image2, row=1, col=1)
 
 # Set the animation values and then render
 render_settings = {"animation_duration": 5}

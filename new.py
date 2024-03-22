@@ -60,10 +60,10 @@ obs_scen = {
     "spectral_resolution": 50,
     # "return_frames": True,
     "return_frames": True,
-    "return_spectrum": True,
+    "return_spectrum": False,
     # "separate_sources": False,
     # "wavelength_resolved_flux": False,
-    "wavelength_resolved_transmission": True,
+    "wavelength_resolved_transmission": False,
     "time_invariant_planets": False,
     "detector_pixel_scale": 0.01 * u.arcsec / u.pix,
     "detector_shape": (300, 300),
@@ -73,9 +73,18 @@ obs1 = Observation(coro1, system, observing_scenario, logging_level="WARNING")
 
 
 img_params = {"plane": "coro", "unit": u.arcsec}
-obs = ObsPlot(obs1, gen_data=generation_data, imaging_params=img_params)
+obs = ObsPlot(
+    obs1,
+    gen_data=generation_data,
+    imaging_params=img_params,
+    ax_kwargs={"title": "Full image"},
+)
 frames = ObservationFrames(
-    obs1, gen_data=generation_data, cumulative=True, imaging_params=img_params
+    obs1,
+    gen_data=generation_data,
+    cumulative=True,
+    imaging_params=img_params,
+    ax_kwargs={"title": "Current frame"},
 )
 # frames = SpectralCube(
 #     obs1, cumulative=True, gen_data=generation_data, imaging_params=img_params
@@ -108,10 +117,11 @@ plot2d = Orbit(
 )
 
 # Create a figure and add the plots
-figure_kwargs = {"figsize": (10, 10), "layout": None}
+figure_kwargs = {"figsize": (8, 8), "layout": None}
 main_figure = Figure(fig_kwargs=figure_kwargs, ncols=2, nrows=2)
 # main_figure = Figure(fig_kwargs=figure_kwargs, ncols=2)
-levels = {1: ["time"], 2: ["spectral_wavelength(nm)"]}
+# levels = {1: ["time"], 2: ["spectral_wavelength(nm)"]}
+levels = {1: ["time"]}
 
 main_figure.please_set_animation_levels(levels)
 
