@@ -34,7 +34,7 @@ e = np.array(system_conv.getpattr("e"))
 w = system_conv.getpattr("w").to(u.rad).value
 K = system_conv.getpattr("K").to(u.m / u.s).value
 
-rv = calc_RV_from_time(times.unix, tp, per, e, w, K)
+# rv = calc_RV_from_time(times.unix, tp, per, e, w, K)
 rv_df = system_conv.propagate_rv(times)
 prop = system_conv.propagate(times, prop="nbody", ref_frame="bary", clean=True)
 true_rv = prop.sel(object="star", index=0, ref_frame="bary", prop="nbody")["vz"].values
