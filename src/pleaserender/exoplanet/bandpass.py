@@ -20,9 +20,9 @@ class Bandpass(Plot):
         self.bandpass = bandpass
         self.plot_method = "plot"
         self.name = "bandpass"
-        assert (
-            wavelengths is not None or obs is not None
-        ), "Either wavelengths or an observation object must be provided."
+        assert wavelengths is not None or obs is not None, (
+            "Either wavelengths or an observation object must be provided."
+        )
         if wavelengths is not None:
             self.wavelengths = wavelengths
         elif obs is not None:

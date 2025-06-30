@@ -318,7 +318,7 @@ class Figure:
                 )
             elif isinstance(animation_value, float):
                 title = (
-                    f"{animation_key.replace('_', ' ')} " "{animation_value.value:.2f}"
+                    f"{animation_key.replace('_', ' ')} {{animation_value.value:.2f}}"
                 )
             elif isinstance(animation_value, np.int64):
                 title = f"{animation_key.replace('_', ' ')} {animation_value}"
