@@ -257,7 +257,7 @@ class Figure:
         for plot in self.plots:
             if plot.shared_plot_data is not None:
                 # Get the data from the other plot
-                if getattr(plot.shared_plot_data, "data") is None:
+                if plot.shared_plot_data.data is None:
                     raise ValueError("The shared plot data has not been generated yet.")
                 plot.data = plot.shared_plot_data.data
             else:
