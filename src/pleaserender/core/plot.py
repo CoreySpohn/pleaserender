@@ -2,7 +2,7 @@ import inspect
 
 import numpy as np
 
-import pleaserender.util as util
+from pleaserender import util
 
 from .render_state import PlotRenderState
 
