@@ -1,11 +1,11 @@
 import copy
 
 import astropy.units as u
-import exoverses.util.misc as misc
 import numpy as np
 import scipy
+from exoverses.util import misc
 
-import pleaserender.util as util
+from pleaserender import util
 from pleaserender.core import Scatter
 
 
