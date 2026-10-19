@@ -5,9 +5,9 @@ import numpy as np
 from astropy.time import Time
 from coronagraphoto import coronagraph
 from exoverses.exovista import ExovistaSystem
+from pleaserender.exoplanet_plots import Orbit
 
 from pleaserender.core import Figure
-from pleaserender.exoplanet_plots import Orbit
 
 # Input files
 coronagraph_dir = Path("input/coronagraphs/LUVOIR-B-VC6_timeseries/")
