@@ -1,10 +1,7 @@
-import copy
-
 import astropy.units as u
-import coronagraphoto.util as cu
+import coronagraphoto as cp
 import numpy as np
-from astropy.time import Time
-from coronagraphoto import Observation, Observations
+import xarray as xr
 from matplotlib.colors import Normalize
 
 from pleaserender import util
@@ -12,8 +9,34 @@ from pleaserender.core import Plot
 
 
 class Image(Plot):
-    def __init__(self, observation, gen_data=None, imaging_params=None, **kwargs):
-        default_imaging_params = {"object": "img", "plane": "coro", "unit": u.pix}
+    """Detector images of a scene, rendered by ``coronagraphoto.expected``.
+
+    Args:
+        scene: The ``skyscapes.Scene`` to image.
+        instrument: The ``optixstuff.Instrument`` to image it with.
+        bands: The ``optixstuff.Band`` list; each band is one entry along the
+            ``spectral_wavelength(nm)`` axis, labeled by its center.
+        gen_data: Optional dict with ``start_time``, the observation times in
+            days from the scene epoch. One time is used when omitted.
+        imaging_params: Overrides of ``object`` (the data variable prefix),
+            ``plane`` (only ``det`` exists) and ``unit`` (``u.pix`` or
+            ``u.arcsec`` for the axes).
+        roll_deg: Position angle of detector +y, north through east.
+        order: Quadrature nodes per band piece.
+    """
+
+    def __init__(
+        self,
+        scene,
+        instrument,
+        bands,
+        gen_data=None,
+        imaging_params=None,
+        roll_deg=0.0,
+        order=2,
+        **kwargs,
+    ):
+        default_imaging_params = {"object": "img", "plane": "det", "unit": u.pix}
         self.imaging_params = default_imaging_params
         if imaging_params is not None:
             self.imaging_params.update(imaging_params)
@@ -44,68 +67,66 @@ class Image(Plot):
         super().__init__(**kwargs)
 
         self.gen_data = gen_data
-        self.observation = observation
-        self.system = observation.system
-        self.coronagraph = observation.coronagraph
-        self.observing_scenario = observation.scenario
-        self.settings = observation.settings
+        self.scene = scene
+        self.instrument = instrument
+        self.bands = list(bands)
+        self.roll_deg = roll_deg
+        self.order = order
         self.plot_method = "imshow"
         self.name = "image"
 
     def generate_data(self):
-        assert self.gen_data is not None, (
-            "The gen_data dictionary must be provided if"
-            " the data is not already provided."
+        gen_data = self.gen_data or {}
+        times = np.atleast_1d(
+            np.asarray(gen_data.get("start_time", [0.0]), dtype=float)
         )
-        times = self.observation.scenario.start_time.reshape(1)
-        wavelengths = self.observation.scenario.central_wavelength.reshape(1)
-        has_start_time = "start_time" in self.gen_data
-        has_wavelength = "central_wavelength" in self.gen_data
-        assert (has_start_time and not has_wavelength) or (
-            not has_start_time and has_wavelength
-        ), (
-            "The generation_data dictionary must contain either a 'time'"
-            " or 'central_wavelength' key."
+        centers = [band.center_nm for band in self.bands]
+        frames = []
+        for time_d in times:
+            exposure = cp.build_exposure(
+                self.scene,
+                self.instrument,
+                self.bands,
+                time_d=float(time_d),
+                roll_deg=self.roll_deg,
+                order=self.order,
+            )
+            rates = cp.expected(self.scene, self.instrument, exposure)
+            frames.append(np.asarray(rates.total()))
+        ny, nx = frames[0].shape[-2:]
+        plane = self.imaging_params["plane"]
+        dims = [
+            "start_time",
+            "spectral_wavelength(nm)",
+            f"ypix({plane})",
+            f"xpix({plane})",
+        ]
+        cube = xr.DataArray(
+            np.stack(frames),
+            dims=dims,
+            coords={
+                "start_time": times,
+                "spectral_wavelength(nm)": centers,
+                f"ypix({plane})": np.arange(ny),
+                f"xpix({plane})": np.arange(nx),
+            },
+            name=self.imsel,
         )
-        if "start_time" in self.gen_data:
-            times = self.gen_data["start_time"]
-        elif "central_wavelength" in self.gen_data:
-            wavelengths = self.gen_data["central_wavelength"]
-        all_obs = Observations(self.observation, times, wavelengths)
-        self.data = all_obs.run()
+        # A single time or band is not an axis to animate over.
+        for dim in ("start_time", "spectral_wavelength(nm)"):
+            if cube.sizes[dim] == 1:
+                cube = cube.squeeze(dim)
+        self.data = cube.to_dataset()
 
     def get_required_keys(self):
         """
         Get the keys that are required to plot the data
         """
-        all_possible_keys = [
-            "start_time",
-            "time",
-            "central_wavelength",
-            "spectral_wavelength(nm)",
-        ]
+        all_possible_keys = ["start_time", "spectral_wavelength(nm)"]
         for key in all_possible_keys:
             if key in self.data.dims:
                 self.required_keys.append(key)
-        if "start_time" in self.required_keys and "time" in self.required_keys:
-            self.skipna = True
-        else:
-            self.skipna = False
-
-    def get_observation_object(self, animation_value, animation_key):
-        obs_scen = copy.deepcopy(self.observing_scenario)
-        if animation_key == "start_time":
-            obs_scen.scenario["start_time"] = Time(animation_value)
-        elif animation_key == "central_wavelength":
-            obs_scen.scenario["central_wavelength"] = animation_value
-        obs = Observation(
-            self.coronagraph,
-            self.system,
-            obs_scen,
-            self.settings,
-            logging_level="WARNING",
-        )
-        return obs
+        self.skipna = False
 
     def draw_plot(self, plot_kwargs=None):
         # photons = self.get_frame_data()
@@ -137,41 +158,7 @@ class Image(Plot):
             if val not in self.data[key]:
                 return False
         plot_data = self.get_plot_data(context)
-        valid = np.any(~np.isnan(plot_data))
-        # Check if the start time is after the time
-        if "start_time" in context and "time" in context:
-            exposure_start_time = Time(context["start_time"])
-            exposure_end_time = (
-                exposure_start_time + self.observation.scenario.exposure_time
-            )
-            valid_time = exposure_start_time <= context["time"] <= exposure_end_time
-            valid = valid and valid_time
-        return valid
-
-    def add_dependent_context(self, context):
-        if "start_time" in self.required_keys and "time" in context:
-            obs_time = context["time"]
-            if obs_time not in self.data["time"]:
-                # If the observation time is not in the data, then the
-                # data has no corresponding start time
-                return context
-            # Get the start times based on the given context
-            start_times = self.data.sel(**context)["start_time"].values
-            after_start = start_times <= obs_time
-
-            # Get the end times based on the exposure time
-            end_times = Time(start_times) + self.observation.scenario.exposure_time
-            before_end = obs_time < end_times
-
-            # Find the start time that is after the observation time
-            start_time = Time(start_times[after_start & before_end]).datetime64
-            assert len(start_time) != 0, "No valid start times found"
-            assert len(start_time) < 2, (
-                "Multiple valid start times found. Check that the exposure time is less"
-                "than the time between observations"
-            )
-            context["start_time"] = start_time[0]
-        return context
+        return bool(np.any(~np.isnan(plot_data)))
 
     def access_data(self, data):
         return data[self.imsel].data
@@ -184,17 +171,11 @@ class Image(Plot):
         self.ax_kwargs["lims"]["y"] = util.calculate_axis_limits_and_ticks(*yrange)
 
     def get_extent(self):
+        ny, nx = self.instrument.detector.grid.shape
         if self.imaging_params["unit"] == u.pix:
-            if self.imaging_params["plane"] == "coro":
-                extent = [0, self.coronagraph.npixels, 0, self.coronagraph.npixels]
-            elif self.imaging_params["plane"] == "det":
-                det_shape = self.observing_scenario.scenario["detector_shape"]
-                extent = [0, det_shape[0], 0, det_shape[1]]
-        else:
-            xarr, yarr = cu.convert_pixels(
-                self.imaging_params["unit"], self.observation, plane="coro"
-            )
-            xarr = xarr.value
-            yarr = yarr.value
-            extent = [xarr.min(), xarr.max(), yarr.min(), yarr.max()]
-        return extent
+            return [0, nx, 0, ny]
+        pixel = self.instrument.detector.pixel_scale_arcsec * u.arcsec
+        unit = self.imaging_params["unit"]
+        half_x = (nx / 2 * pixel).to(unit).value
+        half_y = (ny / 2 * pixel).to(unit).value
+        return [-half_x, half_x, -half_y, half_y]

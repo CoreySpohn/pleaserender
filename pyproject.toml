@@ -14,7 +14,7 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Astronomy",
 ]
 authors = [{ name = "Corey Spohn", email = "corey.a.spohn@nasa.gov" }]
-dependencies = ["numpy", "xarray", "astropy", "matplotlib"]
+dependencies = ["numpy", "xarray", "astropy", "matplotlib", "coronagraphoto"]
 dynamic = ['readme', 'version']
 
 

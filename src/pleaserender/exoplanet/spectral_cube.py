@@ -2,7 +2,7 @@ from pleaserender.exoplanet import Image
 
 
 class SpectralCube(Image):
-    def __init__(self, observation, cumulative=False, *args, **kwargs):
+    def __init__(self, scene, instrument, bands, cumulative=False, *args, **kwargs):
         if "render_state_kwargs" not in kwargs:
             kwargs["render_state_kwargs"] = {"key_strategies": {}}
         if "access_kwargs" not in kwargs:
@@ -27,5 +27,4 @@ class SpectralCube(Image):
                 kwargs["animation_kwargs"]["title_key"] = "spectral_wavelength(nm)"
 
         # Initialize the Image class
-        super().__init__(observation, *args, **kwargs)
-        self.observation = observation
+        super().__init__(scene, instrument, bands, *args, **kwargs)
